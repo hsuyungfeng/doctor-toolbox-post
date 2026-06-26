@@ -302,20 +302,25 @@ def main():
                 warning_count = 0
                 delay_multiplier = max(1.0, delay_multiplier * 0.9)
                 
-                row[idx_status] = result_status
-                row[idx_time] = datetime.now().isoformat()
+                # If it's a dry run, we don't save the status to CSV to prevent
+                # consuming the candidate before the actual outreach campaign.
+                if not args.dry_run:
+                    row[idx_status] = result_status
+                    row[idx_time] = datetime.now().isoformat()
+                    save_data()
+                else:
+                    print(f"    [Dry Run] 跳過更新 CSV 中的狀態，保留候選資格。")
                 
                 # Log progress
                 log_entry = {
                     "clinic_name": clinic_name,
                     "messenger_url": msg_url,
                     "status": result_status,
-                    "timestamp": row[idx_time],
+                    "timestamp": datetime.now().isoformat() if args.dry_run else row[idx_time],
                     "delay_multiplier": delay_multiplier
                 }
                 log_outreach(log_entry)
                 success_count += 1
-                save_data()
             else:
                 print(f"    ❌ 向 {clinic_name} 發送失敗，錯誤代碼: {result_status}")
                 if result_status == "login_required":
