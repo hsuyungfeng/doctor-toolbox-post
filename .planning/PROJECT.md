@@ -24,15 +24,16 @@ An automated outreach pipeline that discovers Taiwan western-medicine (西醫) c
 - ✓ JSONL audit log for all sent messages + post actions — Phase 1
 - ✓ Web dashboard (`outreach_dashboard.html`) for CSV-based progress tracking — Phase 1
 - ✓ Orchestration script for Taichung top-20 batch (`run_taichung_20.py`) — Phase 1
+- ✓ Generic fallback copy for clinics with no Intro/Post data (automatically routed) — Phase 2
+- ✓ Adaptive delay backoff when rate-limit signals detected (multiplier doubles on block) — Phase 2
+- ✓ Master Campaign Orchestrator CLI (`run_campaign.py`) with locks clearing and session verification — Phase 2
 
 ### Active
 
-- [ ] Adaptive delay backoff when rate-limit signals detected (currently fixed random range)
 - [ ] Parallel browser instances for higher throughput while maintaining per-account safety
 - [ ] A/B copy variant testing with per-variant conversion tracking
 - [ ] SQL or SQLite backend to replace CSV for queries at 10k+ clinic scale
 - [ ] Time-series metrics in dashboard (sent/day, reply rate, block rate)
-- [ ] Generic fallback copy for clinics with no Intro/Post data (partially done in `generate_generic_copies.py`, needs integration)
 
 ### Out of Scope
 

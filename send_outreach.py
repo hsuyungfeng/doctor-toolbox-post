@@ -243,6 +243,8 @@ def main():
     page = browser_context.pages[0] if browser_context.pages else browser_context.new_page()
     
     success_count = 0
+    warning_count = 0
+    delay_multiplier = 1.0
     
     try:
         for index, row_idx in enumerate(to_send):
@@ -259,6 +261,9 @@ def main():
             success, result_status = send_messenger_message(page, msg_url, copy_text, dry_run=args.dry_run)
             
             if success:
+                warning_count = 0
+                delay_multiplier = max(1.0, delay_multiplier * 0.9)
+                
                 row[idx_status] = result_status
                 row[idx_time] = datetime.now().isoformat()
                 
@@ -267,7 +272,8 @@ def main():
                     "clinic_name": clinic_name,
                     "messenger_url": msg_url,
                     "status": result_status,
-                    "timestamp": row[idx_time]
+                    "timestamp": row[idx_time],
+                    "delay_multiplier": delay_multiplier
                 }
                 log_outreach(log_entry)
                 success_count += 1
@@ -278,8 +284,33 @@ def main():
                     print("🛑 偵測到需要登入，終止後續發送。")
                     break
                 elif result_status == "delivery_failed":
-                    print("🛑 偵測到 Facebook 限制/發送失敗，終止後續發送以防封號！")
-                    break
+                    warning_count += 1
+                    delay_multiplier *= 2.0
+                    print(f"  ⚠️ 偵測到 Facebook 限制/發送失敗。警告次數: {warning_count}/3，延遲乘數加倍至: {delay_multiplier:.1f}x")
+                    
+                    row[idx_status] = "backoff"
+                    row[idx_time] = datetime.now().isoformat()
+                    log_entry = {
+                        "clinic_name": clinic_name,
+                        "messenger_url": msg_url,
+                        "status": "backoff",
+                        "timestamp": row[idx_time],
+                        "delay_multiplier": delay_multiplier
+                    }
+                    log_outreach(log_entry)
+                    save_data()
+                    
+                    if warning_count >= 3:
+                        row[idx_status] = "session_halted"
+                        save_data()
+                        log_entry["status"] = "session_halted"
+                        log_outreach(log_entry)
+                        print("\n🛑🛑🛑 錯誤：連續偵測到 3 次發送限制！啟動熔斷保護機制，停止所有外展活動！ 🛑🛑🛑")
+                        try:
+                            browser_context.close()
+                        except:
+                            pass
+                        sys.exit(1)
                 else:
                     row[idx_status] = result_status
                     row[idx_time] = datetime.now().isoformat()
@@ -294,8 +325,10 @@ def main():
                     
             # Wait between sends to avoid bot detection
             if index < len(to_send) - 1 and not interrupted:
-                delay = random.randint(args.delay_min, args.delay_max)
-                print(f"⏳ 防封鎖冷卻：將隨機等待 {delay} 秒 (約 {delay/60:.1f} 分鐘) 後再進行下一筆...")
+                min_delay = int(args.delay_min * delay_multiplier)
+                max_delay = int(args.delay_max * delay_multiplier)
+                delay = random.randint(min_delay, max_delay)
+                print(f"⏳ 防封鎖冷卻：將隨機等待 {delay} 秒 (約 {delay/60:.1f} 分鐘，延遲乘數 {delay_multiplier:.1f}x) 後再進行下一筆...")
                 
                 # Sleep in small steps so we can interrupt quickly
                 for _ in range(delay):
