@@ -234,7 +234,7 @@ def main():
             humanize=True,
             timezone="Asia/Taipei",
             locale="zh-TW",
-            args=["--fingerprint=88888"]
+            args=["--fingerprint=77889"]
         )
     except Exception as e:
         print(f"❌ 瀏覽器啟動失敗: {e}")

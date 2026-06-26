@@ -38,7 +38,7 @@ def verify_facebook_session():
             humanize=True,
             timezone="Asia/Taipei",
             locale="zh-TW",
-            args=["--fingerprint=88888"]
+            args=["--fingerprint=77889"]
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto("https://www.messenger.com")
