@@ -97,6 +97,14 @@ This is the **recommended** script for all outreach operations. It handles the c
 
 When running as an autonomous agent (Hermes, `/goal`, or background task), follow this protocol:
 
+### Safety & Execution Recommendations
+
+To prevent Facebook account restrictions and Google CAPTCHA blocks, follow these safe execution limits:
+- **Maximum per run**: 5 clinics at a time.
+- **Estimated time**: ~30-50 minutes per 5 clinics (includes Google search, FB scrape, sending, and cooldowns).
+- **Daily maximum**: 15-20 clinics max per day. Start with 5-10 clinics in the first few days to warm up the account.
+- **Why**: The pipeline performs Google searches to find FB pages. Too many consecutive searches trigger Google CAPTCHA blocks. Too many FB messages in a short time trigger FB spam filters.
+
 ### Autonomous execution command
 ```bash
 # Run 50 clinics in 台中 (will take ~4-8 hours with delays)
