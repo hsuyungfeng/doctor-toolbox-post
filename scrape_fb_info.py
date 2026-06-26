@@ -21,7 +21,12 @@ PROFILE_DIR = WORKSPACE_DIR / "browser_profile"
 
 # Use the file locations configured in post_clinics.py
 CSV_PATH = "/home/hsuyungfeng/文件/doctor-toolbox-post/clinics西醫.csv"
+if not os.path.exists(os.path.dirname(CSV_PATH)):
+    CSV_PATH = str(WORKSPACE_DIR / "clinics西醫.csv")
+
 CACHE_PATH = "/home/hsuyungfeng/文件/doctor-toolbox-post/clinic_links.json"
+if not os.path.exists(os.path.dirname(CACHE_PATH)):
+    CACHE_PATH = str(WORKSPACE_DIR / "clinic_links.json")
 
 # State variables
 csv_header = []
@@ -50,6 +55,30 @@ def load_data():
         csv_header = list(next(reader))
         csv_rows = [list(row) for row in reader]
     
+    # Filter out Traditional Chinese Medicine (中醫) and Dentists (牙醫/牙科)
+    idx_name = csv_header.index('醫事機構名稱')
+    idx_dept = csv_header.index('診療科別') if '診療科別' in csv_header else -1
+    
+    filtered_rows = []
+    for row in csv_rows:
+        if len(row) <= idx_name:
+            continue
+        name = row[idx_name].strip()
+        dept = row[idx_dept].strip() if (idx_dept != -1 and len(row) > idx_dept) else ""
+        
+        is_forbidden = False
+        for term in ["中醫", "牙醫", "牙科"]:
+            if term in name or term in dept:
+                is_forbidden = True
+                break
+        
+        if not is_forbidden:
+            filtered_rows.append(row)
+        else:
+            print(f"  [Filter] 排除 中醫/牙醫 診所: {name} ({dept})")
+            
+    csv_rows = filtered_rows
+    
     # Ensure headers for FB_URL, Email, Messenger, Intro, Latest_Post exist
     new_cols = ['FB_URL', 'Email', 'Messenger', 'Intro', 'Latest_Post']
     for col in new_cols:
@@ -61,7 +90,7 @@ def load_data():
         while len(row) < len(csv_header):
             row.append('')
             
-    print(f"  - 共載入 {len(csv_rows)} 筆診所資料")
+    print(f"  - 共載入 {len(csv_rows)} 筆診所資料 (已排除中醫及牙醫)")
     print(f"  - 目前 CSV 欄位: {', '.join(csv_header)}")
     
     # 2. Load JSON Cache

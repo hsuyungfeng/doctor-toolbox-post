@@ -20,7 +20,12 @@ from cloakbrowser import launch_persistent_context
 WORKSPACE_DIR = Path(__file__).resolve().parent
 PROFILE_DIR = WORKSPACE_DIR / "browser_profile"
 CSV_PATH = "/home/hsuyungfeng/文件/doctor-toolbox-post/clinics西醫.csv"
+if not os.path.exists(os.path.dirname(CSV_PATH)):
+    CSV_PATH = str(WORKSPACE_DIR / "clinics西醫.csv")
+
 OUTREACH_LOG_PATH = "/home/hsuyungfeng/文件/doctor-toolbox-post/outreach_sent_log.jsonl"
+if not os.path.exists(os.path.dirname(OUTREACH_LOG_PATH)):
+    OUTREACH_LOG_PATH = str(WORKSPACE_DIR / "outreach_sent_log.jsonl")
 
 csv_header = []
 csv_rows = []
@@ -41,6 +46,30 @@ def load_data():
         reader = csv.reader(f)
         csv_header = list(next(reader))
         csv_rows = [list(row) for row in reader]
+
+    # Filter out Traditional Chinese Medicine (中醫) and Dentists (牙醫/牙科)
+    idx_name = csv_header.index('醫事機構名稱')
+    idx_dept = csv_header.index('診療科別') if '診療科別' in csv_header else -1
+    
+    filtered_rows = []
+    for row in csv_rows:
+        if len(row) <= idx_name:
+            continue
+        name = row[idx_name].strip()
+        dept = row[idx_dept].strip() if (idx_dept != -1 and len(row) > idx_dept) else ""
+        
+        is_forbidden = False
+        for term in ["中醫", "牙醫", "牙科"]:
+            if term in name or term in dept:
+                is_forbidden = True
+                break
+        
+        if not is_forbidden:
+            filtered_rows.append(row)
+        else:
+            print(f"  [Filter] 排除 中醫/牙醫 診所: {name} ({dept})")
+            
+    csv_rows = filtered_rows
         
     # Ensure Messenger_Status and Outreach_Time columns exist
     if 'Messenger_Status' not in csv_header:
@@ -84,9 +113,18 @@ signal.signal(signal.SIGINT, handle_signal)
 
 def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
     """Open Messenger chat, type the personalized copy, and send it."""
-    print(f"  🌐 開啟 Messenger 對話框: {messenger_url}")
-    page.goto(messenger_url)
-    time.sleep(8) # Wait for page load and redirections
+    # Convert m.me or messenger.com links to facebook.com/messages/t/ to bypass domain authentication issues
+    target_url = messenger_url
+    if "facebook.com/messages/t/" not in messenger_url:
+        parts = messenger_url.rstrip('/').split('/')
+        if parts:
+            username = parts[-1].split('?')[0]
+            if username:
+                target_url = f"https://www.facebook.com/messages/t/{username}"
+
+    print(f"  🌐 開啟 FB 訊息對話框: {target_url} (原網址: {messenger_url})")
+    page.goto(target_url)
+    time.sleep(10) # Wait for page load and redirections
     
     # Check if Messenger is blocked or redirecting
     is_login_page = page.evaluate("""() => {

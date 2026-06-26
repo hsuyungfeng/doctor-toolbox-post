@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field, field_validator, ValidationError
 # === Config ===
 WORKSPACE_DIR = Path(__file__).resolve().parent
 CSV_PATH = "/home/hsuyungfeng/文件/doctor-toolbox-post/clinics西醫.csv"
+if not os.path.exists(os.path.dirname(CSV_PATH)):
+    CSV_PATH = str(WORKSPACE_DIR / "clinics西醫.csv")
 
 # Local llama-qwen36 docker container endpoint
 LLM_API_URL = os.environ.get("LLM_API_URL", "http://localhost:8080/v1/chat/completions")
@@ -90,6 +92,30 @@ def load_data():
         reader = csv.reader(f)
         csv_header = list(next(reader))
         csv_rows = [list(row) for row in reader]
+
+    # Filter out Traditional Chinese Medicine (中醫) and Dentists (牙醫/牙科)
+    idx_name = csv_header.index('醫事機構名稱')
+    idx_dept = csv_header.index('診療科別') if '診療科別' in csv_header else -1
+    
+    filtered_rows = []
+    for row in csv_rows:
+        if len(row) <= idx_name:
+            continue
+        name = row[idx_name].strip()
+        dept = row[idx_dept].strip() if (idx_dept != -1 and len(row) > idx_dept) else ""
+        
+        is_forbidden = False
+        for term in ["中醫", "牙醫", "牙科"]:
+            if term in name or term in dept:
+                is_forbidden = True
+                break
+        
+        if not is_forbidden:
+            filtered_rows.append(row)
+        else:
+            print(f"  [Filter] 排除 中醫/牙醫 診所: {name} ({dept})")
+            
+    csv_rows = filtered_rows
         
     # Ensure Personalized_Copy column exists
     if 'Personalized_Copy' not in csv_header:

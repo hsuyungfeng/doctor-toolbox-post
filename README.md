@@ -6,6 +6,7 @@
 
 1. **診所資訊自動爬取 (`scrape_fb_info.py`)**
    - 自動搜尋並收集診所的 Facebook 粉絲專頁、公開 Email 以及 Messenger 連結。
+   - **中醫與牙醫過濾**：系統會自動偵測「中醫」、「牙科」、「牙醫」等科別與關鍵字並予以排除，只針對西醫診所進行行銷外展。
    - 提取專頁的「簡介」與「最新貼文」，做為後續 AI 分析與文案生成的基礎資料。
    - 優先爬取台中市診所，支援中斷與隨時存檔。
 
@@ -15,12 +16,12 @@
    - 內建 Pydantic 驗證與黑名單過濾，排除違反台灣醫療法之誇大不實詞彙（如「最佳」、「全台第一」）及簡體中文洩漏，失敗時提供重試與通用文案備用。
 
 3. **智慧慢速開發發送 (`send_outreach.py`)**
-   - 模擬真人輸入與發送，智慧定位輸入框並填入個人化文案。
+   - 模擬真人輸入與發送，自動將 Messenger 網址轉換為 Facebook 訊息頁面 (`https://www.facebook.com/messages/t/`) 進行發送，完美繞過 `messenger.com` 獨立域名的登入封鎖與二階段登入攔截，充分運用現有的 Facebook 網頁登入狀態。
    - **防封鎖動態退避 (Adaptive Backoff)**：偵測到臉書限制關鍵字時，自動將隨機冷卻延遲乘數加倍，拉長間隔；成功發送後逐步降速恢復。
    - **硬熔斷機制 (Halt Circuit Breaker)**：連續 3 次遭遇發送失敗或臉書限制時，自動終止任務並進行硬熔斷，避免帳號遭受永久停權。
 
 4. **主控協調 CLI (`run_campaign.py`)**
-   - 提供一鍵式協調整個 Pipeline 的入口。自動釋放鎖定、驗證臉書工作階段、執行爬取、AI 文案生成、沙盒測試與正式發送。
+   - 提供一鍵式協調整個 Pipeline 的入口。自動釋放鎖定、使用 `facebook.com/messages` 驗證臉書工作階段、執行爬取、AI 文案生成、沙盒測試與正式發送。
 
 5. **追蹤與統計儀表板 (`outreach_dashboard.html`)**
    - 提供直觀的網頁儀表板，可載入 `clinics西醫.csv` 並即時統計已處理、待發送、發送失敗等進度。
@@ -57,7 +58,7 @@ uv run playwright install chromium
 當直接在自動化瀏覽器中輸入密碼登入被臉書無條件攔截時，請使用此方式：
 1. 在您日常使用的瀏覽器（如 Chrome/Edge/Firefox）上安裝擴充功能：**Cookie-Editor**。
 2. 於日常瀏覽器中登入您的 Facebook。
-3. 登入成功後，點擊 `Cookie-Editor` 圖示，選擇 **Export -> JSON** 格式複製 Cookie。
+3. 登入成功後，點擊 `Cookie-Editor` 圖示，選擇 **Export -> JSON** 格式複製 Cookie。 *(註：由於本系統直接使用 `facebook.com/messages/t/` 頁面進行發送，因此您**只需**在 Facebook 分頁上匯出 Cookie 即可，不需要另外匯出 Messenger 的 Cookie！)*
 4. 於本專案目錄下建立名為 **`fb_cookies.json`** 的檔案，並將複製的 JSON 內容貼上存檔。
 5. 執行匯入腳本：
    ```bash

@@ -41,7 +41,7 @@ def verify_facebook_session():
             args=["--fingerprint=77889"]
         )
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto("https://www.messenger.com")
+        page.goto("https://www.facebook.com/messages")
         time.sleep(4)
         
         is_login_page = page.evaluate("""() => {
