@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Noto Sans TC', sans-serif;
+    background: #0a1628;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+
+  .poster {
+    width: 1080px;
+    background: linear-gradient(180deg, #0a1628 0%, #132347 50%, #0a1628 100%);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 60px;
+  }
+
+  .poster::before {
+    content: '';
+    position: absolute;
+    top: -150px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(59,130,246,0.2) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 50px 40px 30px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .logo-emoji {
+    font-size: 36px;
+  }
+
+  .logo-name {
+    font-size: 32px;
+    font-weight: 900;
+    color: #ffffff;
+    letter-spacing: 2px;
+  }
+
+  .logo-en {
+    font-size: 16px;
+    color: #94a3b8;
+    font-weight: 400;
+    letter-spacing: 1px;
+  }
+
+  .tagline {
+    color: #60a5fa;
+    font-size: 18px;
+    font-weight: 500;
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+
+  /* Main section */
+  .content {
+    padding: 20px 40px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* App preview */
+  .app-preview {
+    background: #ffffff;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    margin-bottom: 30px;
+  }
+
+  .app-topbar {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .app-topbar-text {
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .app-body {
+    padding: 24px;
+    background: #f8fafc;
+  }
+
+  .voice-banner {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid #bfdbfe;
+  }
+
+  .mic-circle {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 15px rgba(59,130,246,0.4);
+  }
+
+  .mic-circle::after {
+    content: '🎙️';
+    font-size: 22px;
+  }
+
+  .voice-info {
+    flex: 1;
+  }
+
+  .voice-label {
+    color: #1e40af;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .voice-sub {
+    color: #3b82f6;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  .soap-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .soap-box {
+    background: white;
+    border-radius: 10px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .soap-box .label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .soap-box .bar {
+    height: 5px;
+    border-radius: 3px;
+    margin-bottom: 4px;
+  }
+
+  .soap-box .bar:last-child { margin-bottom: 0; }
+
+  .s-box .label { color: #2563eb; }
+  .s-box .bar { background: #dbeafe; }
+
+  .o-box .label { color: #7c3aed; }
+  .o-box .bar { background: #ede9fe; }
+
+  .a-box .label { color: #ea580c; }
+  .a-box .bar { background: #ffedd5; }
+
+  .p-box .label { color: #16a34a; }
+  .p-box .bar { background: #dcfce7; }
+
+  .bar-80 { width: 80%; }
+  .bar-60 { width: 60%; }
+  .bar-90 { width: 90%; }
+  .bar-70 { width: 70%; }
+
+  /* Features */
+  .features {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .feat {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .feat.wide {
+    background: rgba(59,130,246,0.12);
+    border-color: rgba(59,130,246,0.3);
+  }
+
+  .feat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 20px;
+  }
+
+  .fi-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+  .fi-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
+  .fi-purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+  .fi-amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+  .feat-text {
+    flex: 1;
+  }
+
+  .feat-title {
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 3px;
+  }
+
+  .feat-desc {
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .badge {
+    display: inline-block;
+    background: rgba(34,197,94,0.2);
+    color: #4ade80;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-top: 4px;
+  }
+
+  /* CTA */
+  .cta-section {
+    text-align: center;
+    padding: 30px 40px 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .cta-btn {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 18px 40px;
+    border-radius: 14px;
+    display: inline-block;
+    box-shadow: 0 8px 30px rgba(59,130,246,0.4);
+    letter-spacing: 1px;
+  }
+
+  .cta-warning {
+    color: #fbbf24;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 12px;
+  }
+
+  .cta-url {
+    color: #64748b;
+    font-size: 13px;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <div class="header">
+    <div class="logo-row">
+      <span class="logo-emoji">🩺</span>
+      <span class="logo-name">醫師工具箱</span>
+    </div>
+    <div class="logo-en">Doctor Toolbox</div>
+    <div class="tagline">AI 看診語音記錄 · SOAP 病歷生成 · LINE OA 自動回覆</div>
+  </div>
+
+  <div class="content">
+    <!-- App Preview -->
+    <div class="app-preview">
+      <div class="app-topbar">
+        <span class="app-topbar-text">🎙️ AI SOAP 病歷生成器</span>
+      </div>
+      <div class="app-body">
+        <div class="voice-banner">
+          <div class="mic-circle"></div>
+          <div class="voice-info">
+            <div class="voice-label">語音記錄中...</div>
+            <div class="voice-sub">AI 即時轉錄 · 自動生成 SOAP 病歷</div>
+          </div>
+        </div>
+        <div class="soap-grid">
+          <div class="soap-box s-box">
+            <div class="label">S · 主觀症狀</div>
+            <div class="bar bar-80"></div>
+            <div class="bar bar-60"></div>
+            <div class="bar bar-90"></div>
+          </div>
+          <div class="soap-box o-box">
+            <div class="label">O · 客觀檢查</div>
+            <div class="bar bar-70"></div>
+            <div class="bar bar-80"></div>
+            <div class="bar bar-60"></div>
+          </div>
+          <div class="soap-box a-box">
+            <div class="label">A · 評估診斷</div>
+            <div class="bar bar-90"></div>
+            <div class="bar bar-70"></div>
+            <div class="bar bar-80"></div>
+          </div>
+          <div class="soap-box p-box">
+            <div class="label">P · 治療計劃</div>
+            <div class="bar bar-60"></div>
+            <div class="bar bar-80"></div>
+            <div class="bar bar-70"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="features">
+      <div class="feat wide">
+        <div class="feat-icon fi-blue">🎙️</div>
+        <div class="feat-text">
+          <div class="feat-title">語音即時記錄 → SOAP 病歷</div>
+          <div class="feat-desc">看診過程自然對話，AI 自動轉成結構化 SOAP 病歷</div>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon fi-green">📱</div>
+        <div class="feat-text">
+          <div class="feat-title">LINE 病史整合</div>
+          <div class="feat-desc">病人原始病史直接同步，完整脈絡一鍵掌握</div>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon fi-purple">🤖</div>
+        <div class="feat-text">
+          <div class="feat-title">LINE OA 自動回覆</div>
+          <div class="feat-desc">回覆診所常見問題、專長、看診時間、費用...</div>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon fi-amber">💰</div>
+        <div class="feat-text">
+          <div class="feat-title">高用量方案 · 輕鬆應對門診需求</div>
+          <div class="badge">LINE + Voice Record 每月各 1000 人次</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cta-section">
+    <div class="cta-btn">👉 立即免費體驗</div>
+    <div class="cta-warning">⚠️ 建議先註冊再體驗，避免病人資料流失</div>
+    <div class="cta-url">https://doctor-toolbox.com/ai-soap-generator</div>
+  </div>
+
+</div>
+</body>
+</html>

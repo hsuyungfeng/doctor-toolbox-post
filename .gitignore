@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Browser Profile (CRITICAL: Contains active login sessions and cookies)
+browser_profile/
+
+# Data and Logs
+*.csv
+*.jsonl
+processed_clinics.json
+
+# Environment and IDEs
+.vscode/
+.idea/
+.env
+.env.*
+
+# Testing
+.pytest_cache/
+
+# OS-specific
+.DS_Store
+Thumbs.db

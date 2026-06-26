@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>醫師工具箱 (Doctor Toolbox) - 診所開發追蹤儀表板</title>
+    <!-- Google Fonts & Tailwind-like Custom Modern CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PapaParse CDN for CSV Parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: rgba(22, 27, 34, 0.8);
+            --border-color: #30363d;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --accent-color: #58a6ff;
+            --success-color: #3fb950;
+            --warning-color: #d29922;
+            --danger-color: #f85149;
+            --card-hover: rgba(33, 38, 45, 0.9);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', 'SF Pro TC', 'Noto Sans TC', sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        /* Glassmorphism Navbar */
+        nav {
+            background: rgba(13, 17, 23, 0.7);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #58a6ff, #1f6feb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Dashboard Container */
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 1024px) {
+            .grid {
+                grid-template-columns: 350px 1fr;
+            }
+        }
+
+        /* Card Styling */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            border-color: #8b949e;
+        }
+
+        h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* File Upload */
+        .file-upload {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 2rem 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-bottom: 1.5rem;
+        }
+
+        .file-upload:hover {
+            border-color: var(--accent-color);
+            background: rgba(88, 166, 255, 0.05);
+        }
+
+        .file-upload input {
+            display: none;
+        }
+
+        /* Button Styling */
+        .btn {
+            background-color: #21262d;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background-color: #30363d;
+            border-color: #8b949e;
+        }
+
+        .btn-primary {
+            background-color: #238636;
+            border-color: rgba(240, 246, 252, 0.1);
+        }
+
+        .btn-primary:hover {
+            background-color: #2ea043;
+        }
+
+        .btn-accent {
+            background-color: #1f6feb;
+            border-color: rgba(240, 246, 252, 0.1);
+        }
+
+        .btn-accent:hover {
+            background-color: #388bfd;
+        }
+
+        /* Textarea copy block */
+        .copy-box {
+            margin-bottom: 1.5rem;
+        }
+
+        .copy-box label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .copy-box textarea {
+            width: 90%;
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 0.75rem;
+            font-family: inherit;
+            font-size: 0.875rem;
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        /* Search & Filter Area */
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 250px;
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 0.75rem 1rem;
+            font-size: 0.95rem;
+            transition: var(--transition);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+        }
+
+        select {
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            padding: 0.75rem;
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+
+        /* Clinic List */
+        .clinic-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .clinic-row {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 1rem;
+            transition: var(--transition);
+        }
+
+        .clinic-row:hover {
+            background: var(--card-hover);
+            transform: translateY(-2px);
+        }
+
+        @media (min-width: 768px) {
+            .clinic-row {
+                flex-direction: row;
+                align-items: center;
+            }
+        }
+
+        .clinic-info {
+            flex: 1;
+        }
+
+        .clinic-name {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin: 0 0 0.5rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .clinic-meta {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .clinic-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .clinic-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Badges */
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-email {
+            background-color: rgba(56, 139, 253, 0.15);
+            color: #58a6ff;
+            border: 1px solid rgba(56, 139, 253, 0.3);
+        }
+
+        .badge-msg {
+            background-color: rgba(63, 185, 80, 0.15);
+            color: #3fb950;
+            border: 1px solid rgba(63, 185, 80, 0.3);
+        }
+
+        /* Checkboxes for state tracking */
+        .status-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            background: rgba(13, 17, 23, 0.3);
+            transition: var(--transition);
+        }
+
+        .status-checkbox:hover {
+            background: #21262d;
+        }
+
+        .status-checkbox.checked {
+            border-color: var(--success-color);
+            color: var(--text-primary);
+            background: rgba(63, 185, 80, 0.1);
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: #238636;
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transform: translateY(150%);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+        }
+
+        /* Stats panel */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: rgba(22, 27, 34, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-title">
+            🩺 醫師工具箱 Outreach Dashboard
+        </div>
+        <div style="font-size: 0.875rem; color: var(--text-secondary);">
+            本地端免安裝版 • 資料始終保持最新
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="grid">
+            <!-- Sidebar -->
+            <div class="sidebar-column">
+                <!-- Data Source Card -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h2>📂 資料來源設定</h2>
+                    <div class="file-upload" onclick="document.getElementById('csvFileInput').click()">
+                        <span style="font-size: 1.5rem;">📄</span>
+                        <div style="margin-top: 0.5rem; font-weight: 500;">載入 <code>clinics西醫.csv</code> 檔案</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            支援隨時載入最新爬取的 CSV
+                        </div>
+                        <input type="file" id="csvFileInput" accept=".csv" onchange="handleFileSelect(event)">
+                    </div>
+                    
+                    <div id="statsPanel" style="display: none;">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value" id="statTotal">0</div>
+                                <div class="stat-label">總筆數</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="statEmail" style="color: var(--accent-color);">0</div>
+                                <div class="stat-label">有電子郵件</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" id="statMsg" style="color: var(--success-color);">0</div>
+                                <div class="stat-label">有 Messenger</div>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); text-align: center;" id="loadedFileName"></div>
+                    </div>
+                </div>
+
+                <!-- Copywriting Settings -->
+                <div class="card">
+                    <h2>📝 開發推廣文案</h2>
+                    
+                    <div class="copy-box">
+                        <label for="fbCopyText">💬 Messenger 開發訊息 (推薦簡短版)</label>
+                        <textarea id="fbCopyText">您好！🩺 醫師工具箱幫您：
+🎙️ 語音即時記錄 → AI 轉 SOAP 病歷
+📱 LINE 病史整合、LINE OA 自動回覆
+💰 LINE + Voice Record 每月各 1000 人次，只要 1000 元！
+任何 HIS 系統都能橋接，不須更換 📋
+👉 免費體驗連結：https://doctor-toolbox.com/ai-soap-generator
+徐永峰醫師監製 · 品質保證</textarea>
+                        <button class="btn btn-accent" style="width: 90%; margin-top: 0.5rem;" onclick="copyPitchText('fbCopyText')">
+                            📋 複製此文案
+                        </button>
+                    </div>
+
+                    <div class="copy-box">
+                        <label for="emailCopyText">✉️ Email 開發信件內容</label>
+                        <textarea id="emailCopyText" style="min-height: 200px;">主旨：🩺 【看診對話，自動變成 SOAP 病歷】— 醫師工具箱推薦給貴診所
+
+您好，
+
+我們是醫師工具箱開發團隊。我們特別研發了專為西醫診所設計的「AI SOAP 病歷生成工具」，希望能幫助貴診所提升日常病歷記載效率：
+
+🎙️ 語音即時記錄：AI 直錄並自動彙整為標準 SOAP 病歷。
+📱 LINE 病史整合：LINE OA 自動回覆，省去掛號與客服繁雜流程。
+💰 優惠費率：LINE + Voice Record 每月各 1000 人次，僅需 1000 元。
+
+此系統支援與任何既有 HIS 系統橋接，完全不須更換診所原有設備。
+本工具由徐永峰醫師監製，品質與實用性深獲肯定。
+
+👉 免費體驗連結：https://doctor-toolbox.com/ai-soap-generator
+
+祝 診務昌隆
+醫師工具箱 敬上</textarea>
+                        <button class="btn btn-accent" style="width: 90%; margin-top: 0.5rem;" onclick="copyPitchText('emailCopyText')">
+                            📋 複製此文案
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="main-column">
+                <div class="card" style="min-height: 500px;">
+                    <h2>🔍 診所篩選與開發面板</h2>
+                    
+                    <div class="filters">
+                        <input type="text" class="search-input" id="searchInput" placeholder="搜尋診所名稱、科別或地址..." oninput="filterClinics()">
+                        
+                        <select id="statusFilter" onchange="filterClinics()">
+                            <option value="all">顯示全部</option>
+                            <option value="has_email">僅顯示有 Email</option>
+                            <option value="has_messenger">僅顯示有 Messenger</option>
+                            <option value="not_messaged">未完成 Messenger 私訊</option>
+                            <option value="not_emailed">未完成 Email 發信</option>
+                        </select>
+
+                        <select id="areaFilter" onchange="filterClinics()">
+                            <option value="all">所有區域 (全部)</option>
+                        </select>
+                    </div>
+
+                    <div id="noDataMessage" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
+                        <span style="font-size: 2.5rem; display: block; margin-bottom: 1rem;">🔍</span>
+                        請於左側載入 <code>clinics西醫.csv</code> 檔案以開始篩選開發。
+                    </div>
+
+                    <div class="clinic-list" id="clinicListContainer">
+                        <!-- Cards dynamically rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span style="font-size: 1.2rem;">✅</span>
+        <span id="toastMessage">已成功複製文案！</span>
+    </div>
+
+    <script>
+        let rawClinicsData = [];
+        let filteredClinicsData = [];
+        let completedStates = {};
+
+        // Load local tracking state from LocalStorage
+        if (localStorage.getItem('toolbox_outreach_completed')) {
+            try {
+                completedStates = JSON.parse(localStorage.getItem('toolbox_outreach_completed'));
+            } catch (e) {
+                completedStates = {};
+            }
+        }
+
+        function saveStateToLocal() {
+            localStorage.setItem('toolbox_outreach_completed', JSON.stringify(completedStates));
+        }
+
+        // Handle File Loading
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('loadedFileName').innerText = `已載入: ${file.name}`;
+            
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    rawClinicsData = results.data;
+                    console.log("Parsed CSV:", rawClinicsData);
+                    
+                    // Filter out rows without name
+                    rawClinicsData = rawClinicsData.filter(c => c['醫事機構名稱'] && c['醫事機構名稱'].trim() !== '');
+
+                    setupStats();
+                    setupAreaFilter();
+                    
+                    document.getElementById('noDataMessage').style.display = 'none';
+                    document.getElementById('statsPanel').style.display = 'block';
+                    
+                    filterClinics();
+                }
+            });
+        }
+
+        // Setup Statistics Display
+        function setupStats() {
+            const total = rawClinicsData.length;
+            const hasEmail = rawClinicsData.filter(c => c['Email'] && c['Email'] !== 'not_found' && c['Email'].includes('@')).length;
+            const hasMsg = rawClinicsData.filter(c => c['Messenger'] && c['Messenger'] !== 'not_found' && c['Messenger'].startsWith('http')).length;
+
+            document.getElementById('statTotal').innerText = total;
+            document.getElementById('statEmail').innerText = hasEmail;
+            document.getElementById('statMsg').innerText = hasMsg;
+        }
+
+        // Setup Area Filter Dropdown
+        function setupAreaFilter() {
+            const select = document.getElementById('areaFilter');
+            select.innerHTML = '<option value="all">所有區域 (全部)</option>';
+            
+            // Extract distinct zones or districts
+            const zones = new Set();
+            rawClinicsData.forEach(c => {
+                const addr = c['地址'] || '';
+                // Extract first 6 characters to capture county and district (e.g., 臺北市松山區)
+                if (addr.length >= 6) {
+                    zones.add(addr.substring(0, 6));
+                }
+            });
+
+            // Sort and append option
+            Array.from(zones).sort().forEach(zone => {
+                const opt = document.createElement('option');
+                opt.value = zone;
+                opt.innerText = zone;
+                select.appendChild(opt);
+            });
+        }
+
+        // Filter and Render Loop
+        function filterClinics() {
+            if (rawClinicsData.length === 0) return;
+
+            const searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const areaFilter = document.getElementById('areaFilter').value;
+
+            filteredClinicsData = rawClinicsData.filter(c => {
+                const name = (c['醫事機構名稱'] || '').toLowerCase();
+                const address = (c['地址'] || '').toLowerCase();
+                const dept = (c['診療科別'] || '').toLowerCase();
+                const email = c['Email'] || '';
+                const messenger = c['Messenger'] || '';
+                const code = c['醫事機構代碼'] || '';
+                
+                // Search filter
+                const matchesSearch = name.includes(searchQuery) || address.includes(searchQuery) || dept.includes(searchQuery);
+                
+                // Area filter
+                const matchesArea = areaFilter === 'all' || address.startsWith(areaFilter.toLowerCase());
+                
+                // Status filter
+                let matchesStatus = true;
+                const state = completedStates[code] || {};
+                
+                if (statusFilter === 'has_email') {
+                    matchesStatus = email && email !== 'not_found' && email.includes('@');
+                } else if (statusFilter === 'has_messenger') {
+                    matchesStatus = messenger && messenger !== 'not_found' && messenger.startsWith('http');
+                } else if (statusFilter === 'not_messaged') {
+                    matchesStatus = messenger && messenger !== 'not_found' && messenger.startsWith('http') && !state.messaged;
+                } else if (statusFilter === 'not_emailed') {
+                    matchesStatus = email && email !== 'not_found' && email.includes('@') && !state.emailed;
+                }
+
+                return matchesSearch && matchesArea && matchesStatus;
+            });
+
+            renderClinics();
+        }
+
+        // Render List Elements
+        function renderClinics() {
+            const container = document.getElementById('clinicListContainer');
+            container.innerHTML = '';
+
+            const dataToRender = filteredClinicsData.slice(0, 100); // Limit to first 100 results for rendering speed
+            
+            if (dataToRender.length === 0) {
+                container.innerHTML = '<div style="padding: 3rem; text-align: center; color: var(--text-secondary);">沒有找到符合篩選條件的診所。</div>';
+                return;
+            }
+
+            dataToRender.forEach((clinic, idx) => {
+                const code = clinic['醫事機構代碼'] || idx;
+                const name = clinic['醫事機構名稱'];
+                const phone = clinic['電話'] || '無電話';
+                const address = clinic['地址'] || '無地址';
+                const dept = clinic['診療科別'] || '西醫診所';
+                const fbUrl = clinic['FB_URL'] || '';
+                const email = clinic['Email'] || '';
+                const messenger = clinic['Messenger'] || '';
+                
+                const state = completedStates[code] || { emailed: false, messaged: false };
+
+                // Build Card Element
+                const card = document.createElement('div');
+                card.className = 'clinic-row';
+                
+                // Meta and Tags
+                let badges = `<span class="badge" style="background: #21262d; border: 1px solid var(--border-color); color: var(--text-secondary);">${dept}</span>`;
+                
+                let emailBtn = '';
+                if (email && email !== 'not_found' && email.includes('@')) {
+                    badges += ` <span class="badge badge-email">✉️ EMAIL: ${email}</span>`;
+                    emailBtn = `
+                        <a href="mailto:${email}" class="btn" style="border-color: rgba(88, 166, 255, 0.4);" onclick="markAction('${code}', 'emailed', true)">
+                            ✉️ 開發寄信
+                        </a>
+                    `;
+                }
+
+                let messengerBtn = '';
+                if (messenger && messenger !== 'not_found' && messenger.startsWith('http')) {
+                    badges += ` <span class="badge badge-msg">💬 Messenger 有效</span>`;
+                    messengerBtn = `
+                        <a href="${messenger}" target="_blank" class="btn btn-primary" onclick="markAction('${code}', 'messaged', true)">
+                            💬 開啟私訊
+                        </a>
+                    `;
+                }
+
+                const fbBtn = (fbUrl && fbUrl !== 'not_found') ? `
+                    <a href="${fbUrl}" target="_blank" class="btn">
+                        🌐 粉專首頁
+                    </a>
+                ` : '';
+
+                card.innerHTML = `
+                    <div class="clinic-info">
+                        <h3 class="clinic-name">
+                            ${name}
+                        </h3>
+                        <div style="margin-bottom: 0.5rem;">${badges}</div>
+                        <div class="clinic-meta">
+                            <span>📞 ${phone}</span>
+                            <span>📍 ${address}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="clinic-actions">
+                        <!-- Tracking Checkboxes -->
+                        <label class="status-checkbox ${state.emailed ? 'checked' : ''}" onclick="toggleState(event, '${code}', 'emailed')">
+                            <input type="checkbox" style="display:none;" ${state.emailed ? 'checked' : ''}>
+                            📧 ${state.emailed ? '已寄信' : '未寄信'}
+                        </label>
+                        
+                        <label class="status-checkbox ${state.messaged ? 'checked' : ''}" onclick="toggleState(event, '${code}', 'messaged')">
+                            <input type="checkbox" style="display:none;" ${state.messaged ? 'checked' : ''}>
+                            💬 ${state.messaged ? '已私訊' : '未私訊'}
+                        </label>
+                        
+                        <!-- Outreach Links -->
+                        ${emailBtn}
+                        ${messengerBtn}
+                        ${fbBtn}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+
+            // If there are more than 100 items, show notice
+            if (filteredClinicsData.length > 100) {
+                const loadMoreNotice = document.createElement('div');
+                loadMoreNotice.style.cssText = 'padding: 1.5rem; text-align: center; color: var(--text-secondary); border-top: 1px solid var(--border-color); margin-top: 1rem;';
+                loadMoreNotice.innerHTML = `⚠️ 為加速效能，僅顯示前 100 筆診所（符合條件的總筆數為 <strong>${filteredClinicsData.length}</strong> 筆）。請使用上方的關鍵字篩選以縮小範圍。`;
+                container.appendChild(loadMoreNotice);
+            }
+        }
+
+        // Toggle state and save
+        function toggleState(event, code, action) {
+            event.preventDefault(); // Prevent checkbox double triggering
+            if (!completedStates[code]) {
+                completedStates[code] = { emailed: false, messaged: false };
+            }
+            completedStates[code][action] = !completedStates[code][action];
+            saveStateToLocal();
+            
+            // Re-render
+            filterClinics();
+        }
+
+        // Mark action as true directly
+        function markAction(code, action, val) {
+            if (!completedStates[code]) {
+                completedStates[code] = { emailed: false, messaged: false };
+            }
+            completedStates[code][action] = val;
+            saveStateToLocal();
+            // Re-render
+            setTimeout(filterClinics, 500);
+        }
+
+        // Copy copywriting to clipboard
+        function copyPitchText(elementId) {
+            const textarea = document.getElementById(elementId);
+            textarea.select();
+            document.execCommand('copy');
+            
+            showToast("已成功複製開發文案至剪貼簿！");
+        }
+
+        // Copy specific text to clipboard
+        function copyText(text, message) {
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+            
+            showToast(message || "複製成功！");
+        }
+
+        // Display toast notification
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMessage').innerText = message;
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

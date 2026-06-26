@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Noto Sans TC', sans-serif;
+    background: #0a1628;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .poster {
+    width: 1200px;
+    height: 1200px;
+    background: linear-gradient(135deg, #0a1628 0%, #132347 50%, #1a3365 100%);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .poster::before {
+    content: '';
+    position: absolute;
+    top: -200px;
+    right: -200px;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  .poster::after {
+    content: '';
+    position: absolute;
+    bottom: -150px;
+    left: -150px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(34,197,94,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+
+  /* Top: Logo */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 35px;
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo-circle {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    box-shadow: 0 4px 15px rgba(59,130,246,0.4);
+  }
+
+  .logo-text {
+    color: #ffffff;
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+
+  .logo-en {
+    color: #94a3b8;
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  /* Headline */
+  .headline {
+    text-align: center;
+    margin-bottom: 18px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .headline h1 {
+    color: #ffffff;
+    font-size: 36px;
+    font-weight: 900;
+    margin: 0 0 6px 0;
+    line-height: 1.3;
+  }
+
+  .headline h1 span {
+    background: linear-gradient(135deg, #60a5fa, #34d399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .headline p {
+    color: #94a3b8;
+    font-size: 15px;
+    font-weight: 400;
+    margin: 0 0 4px 0;
+  }
+
+  .headline .bridge-badge {
+    display: inline-block;
+    background: rgba(139, 92, 246, 0.2);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    color: #a78bfa;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-top: 6px;
+  }
+
+  .headline .bridge-badge span {
+    color: #c4b5fd;
+  }
+
+  /* Center: Main content */
+  .center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    padding: 0 60px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* App mockup */
+  .app-mockup {
+    background: #ffffff;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    width: 520px;
+    margin-bottom: 16px;
+  }
+
+  .mock-topbar {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mock-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .mock-title {
+    color: rgba(255,255,255,0.8);
+    font-size: 12px;
+    margin-left: 8px;
+  }
+
+  .mock-body {
+    padding: 16px;
+    background: #f8fafc;
+  }
+
+  .voice-row {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid #bfdbfe;
+    margin-bottom: 10px;
+  }
+
+  .mic-btn {
+    width: 42px;
+    height: 42px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(59,130,246,0.4);
+    font-size: 18px;
+  }
+
+  .voice-lbl {
+    color: #1e40af;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .voice-sub {
+    color: #3b82f6;
+    font-size: 10px;
+  }
+
+  .soap-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .soap-card {
+    background: white;
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .soap-card .lbl {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+  }
+
+  .soap-card .bar {
+    height: 4px;
+    border-radius: 2px;
+    margin-bottom: 3px;
+  }
+
+  .soap-card .bar:last-child { margin-bottom: 0; }
+
+  .s .lbl { color: #2563eb; }
+  .s .bar { background: #dbeafe; }
+  .o .lbl { color: #7c3aed; }
+  .o .bar { background: #ede9fe; }
+  .a .lbl { color: #ea580c; }
+  .a .bar { background: #ffedd5; }
+  .p .lbl { color: #16a34a; }
+  .p .bar { background: #dcfce7; }
+
+  /* CTA — moved to first screen */
+  .cta-section {
+    text-align: center;
+    margin-top: 8px;
+    margin-bottom: 16px;
+  }
+
+  .cta-btn {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    font-size: 24px;
+    font-weight: 700;
+    padding: 16px 50px;
+    border-radius: 14px;
+    display: inline-block;
+    box-shadow: 0 8px 30px rgba(59,130,246,0.4);
+    letter-spacing: 1px;
+  }
+
+  .cta-sub {
+    color: #fbbf24;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+
+  .cta-url {
+    color: #e2e8f0;
+    font-size: 15px;
+    margin-top: 6px;
+  }
+
+  /* Divider */
+  .divider {
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    margin: 8px 0 14px;
+  }
+
+  /* Scroll hint */
+  .scroll-hint {
+    color: #64748b;
+    font-size: 11px;
+    margin-bottom: 14px;
+    animation: bounce 2s infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(4px); }
+  }
+
+  /* Features — below fold */
+  .feat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    width: 100%;
+    max-width: 520px;
+    margin-bottom: 12px;
+  }
+
+  .feat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 9px 14px;
+  }
+
+  .feat-item.highlight {
+    background: rgba(59,130,246,0.12);
+    border-color: rgba(59,130,246,0.3);
+  }
+
+  .feat-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 15px;
+  }
+
+  .fi-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+  .fi-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
+  .fi-purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+  .fi-amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+  .feat-text {
+    flex: 1;
+  }
+
+  .feat-t {
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .feat-d {
+    color: #94a3b8;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  .badge {
+    display: inline-block;
+    background: rgba(34,197,94,0.2);
+    color: #4ade80;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-top: 3px;
+  }
+
+  /* Bottom: URL + stamp */
+  .bottom {
+    width: 100%;
+    text-align: center;
+    padding: 0 60px 35px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stamp {
+    color: #94a3b8;
+    font-size: 11px;
+    margin-top: 6px;
+  }
+
+  .stamp strong {
+    color: #4ade80;
+  }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <!-- ===== FIRST SCREEN: Logo → Headline → Mockup → CTA ===== -->
+  <div class="top-bar">
+    <div class="logo-circle">🩺</div>
+    <div>
+      <div class="logo-text">醫師工具箱</div>
+      <div class="logo-en">Doctor Toolbox</div>
+    </div>
+  </div>
+
+  <div class="headline">
+    <h1>看診對話，<span>自動變成</span> SOAP 病歷</h1>
+    <p>語音即時記錄 → AI 轉錄 → 結構化病歷一次到位</p>
+    <div class="bridge-badge">🔗 任何系統都能橋接，<span>不須更換 HIS</span></div>
+  </div>
+
+  <div class="center">
+    <!-- App Mockup -->
+    <div class="app-mockup">
+      <div class="mock-topbar">
+        <div class="mock-dot" style="background:#ff5f57"></div>
+        <div class="mock-dot" style="background:#ffbd2e"></div>
+        <div class="mock-dot" style="background:#28c840"></div>
+        <div class="mock-title">AI SOAP 病歷生成器</div>
+      </div>
+      <div class="mock-body">
+        <div class="voice-row">
+          <div class="mic-btn">🎙️</div>
+          <div>
+            <div class="voice-lbl">語音記錄中...</div>
+            <div class="voice-sub">AI 即時轉錄 · 自動生成 SOAP 病歷</div>
+          </div>
+        </div>
+        <div class="soap-2x2">
+          <div class="soap-card s">
+            <div class="lbl">S · 主觀症狀</div>
+            <div class="bar" style="width:85%"></div>
+            <div class="bar" style="width:65%"></div>
+            <div class="bar" style="width:78%"></div>
+          </div>
+          <div class="soap-card o">
+            <div class="lbl">O · 客觀檢查</div>
+            <div class="bar" style="width:72%"></div>
+            <div class="bar" style="width:88%"></div>
+            <div class="bar" style="width:60%"></div>
+          </div>
+          <div class="soap-card a">
+            <div class="lbl">A · 評估診斷</div>
+            <div class="bar" style="width:80%"></div>
+            <div class="bar" style="width:68%"></div>
+            <div class="bar" style="width:90%"></div>
+          </div>
+          <div class="soap-card p">
+            <div class="lbl">P · 治療計劃</div>
+            <div class="bar" style="width:75%"></div>
+            <div class="bar" style="width:82%"></div>
+            <div class="bar" style="width:65%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA — 首屏可見 -->
+    <div class="cta-section">
+      <div class="cta-btn">👉 立即免費體驗</div>
+      <div class="cta-sub">⚠️ 建議先註冊再體驗，避免病人資料流失</div>
+      <div class="cta-url">https://doctor-toolbox.com/</div>
+    </div>
+
+    <!-- Divider + scroll hint -->
+    <div class="divider"></div>
+    <div class="scroll-hint">▼ 更多功能 ▼</div>
+
+    <!-- ===== BELOW FOLD: Features ===== -->
+    <div class="feat-list">
+      <div class="feat-item highlight">
+        <div class="feat-icon fi-blue">🎙️</div>
+        <div class="feat-text">
+          <div class="feat-t">語音即時記錄 → SOAP 病歷</div>
+          <div class="feat-d">看診過程自然對話，AI 自動轉成結構化 SOAP 病歷</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-icon fi-green">📱</div>
+        <div class="feat-text">
+          <div class="feat-t">LINE 病史整合</div>
+          <div class="feat-d">病人原始病史直接同步，完整脈絡一鍵掌握</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-icon fi-purple">🤖</div>
+        <div class="feat-text">
+          <div class="feat-t">LINE OA 自動回覆</div>
+          <div class="feat-d">診所常見問題、專長、看診時間、費用</div>
+        </div>
+      </div>
+      <div class="feat-item">
+        <div class="feat-icon fi-amber">💰</div>
+        <div class="feat-text">
+          <div class="feat-t">高用量方案</div>
+          <div class="feat-d">輕鬆應對門診需求</div>
+          <div class="badge">LINE + Voice Record 每月各 1000 人次 ｜ 費用每月 1000 元</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom: Stamp -->
+  <div class="bottom">
+    <div class="stamp"><strong>徐永峰醫師監製</strong> · 品質保證 ｜ 歡迎免費體驗分享</div>
+  </div>
+
+</div>
+</body>
+</html>
