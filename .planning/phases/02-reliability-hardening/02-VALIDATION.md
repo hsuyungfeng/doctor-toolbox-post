@@ -42,6 +42,8 @@ created: 2026-06-26
 | 02-01-02 | 01 | 1 | SCRP-05 | — | Row processing handles missing metadata without crashes | unit | `python3 -m pytest tests/test_fallback.py` | ❌ W0 | ⬜ pending |
 | 02-02-01 | 02 | 2 | SEND-05 | — | Backoff delays increase on rate-limit warnings | unit/mock | `python3 -m pytest tests/test_backoff.py` | ❌ W0 | ⬜ pending |
 | 02-02-02 | 02 | 2 | ERR-04 | — | Session block counts trigger warnings and halts | unit/mock | `python3 -m pytest tests/test_backoff.py` | ❌ W0 | ⬜ pending |
+| 02-03-01 | 03 | 3 | ORCH-01 | — | Orchestrator runs all pipeline scripts in sequence | unit/mock | `python3 -m pytest tests/test_campaign.py` | ❌ W0 | ⬜ pending |
+| 02-03-02 | 03 | 3 | ORCH-01 | — | Session check halts campaign execution if logged out | unit/mock | `python3 -m pytest tests/test_campaign.py` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,6 +53,7 @@ created: 2026-06-26
 
 - [ ] `tests/test_fallback.py` — test harness for missing metadata fallback routing
 - [ ] `tests/test_backoff.py` — unit tests mocking the Facebook warning DOM states and backoff logic
+- [ ] `tests/test_campaign.py` — unit tests for the campaign master orchestrator
 - [ ] `tests/conftest.py` — pytest setup and mock fixtures
 
 ---
