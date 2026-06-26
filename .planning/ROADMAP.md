@@ -33,7 +33,7 @@ Three-phase journey. Phase 1 (core pipeline) is already live and validated with 
   2. Pipeline automatically increases delay intervals when rate-limit signals appear, before a full block occurs
   3. Operator receives CLI notification and log entry when session block count exceeds a configurable threshold
   4. A 200-clinic batch completes without manual supervision and without producing duplicate sends
-**Plans**: TBD
+**Plans**: 2 plans
 
 ### Phase 3: Measurement & Scale
 **Goal**: Observable, queryable system supporting full Taiwan geographic coverage and data-driven copy optimization
