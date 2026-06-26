@@ -10,6 +10,8 @@ browser_profile/
 *.csv
 *.jsonl
 processed_clinics.json
+fb_cookies.json
+*.png
 
 # Environment and IDEs
 .vscode/
