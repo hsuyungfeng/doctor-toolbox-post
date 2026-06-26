@@ -154,13 +154,19 @@ def handle_signal(sig, frame):
 signal.signal(signal.SIGINT, handle_signal)
 
 def call_local_llm(prompt):
-    """Call local llama-qwen36 API synchronously using urllib (OpenAI compatible format)."""
+    """Call local LLM API synchronously using urllib (OpenAI compatible format).
+    
+    Note: The Qwythos-9B reasoning model uses tokens for internal chain-of-thought
+    (reasoning_content) before generating output. max_tokens must be high enough to
+    accommodate both reasoning and output tokens.
+    """
     data = {
         "messages": [
+            {"role": "system", "content": "你是醫療行銷文案助手。直接輸出 JSON，不要解釋。"},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.2,
-        "max_tokens": 300,
+        "max_tokens": 1024,
         "response_format": {"type": "json_object"}
     }
     json_data = json.dumps(data).encode('utf-8')
@@ -172,12 +178,21 @@ def call_local_llm(prompt):
     )
     
     try:
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.urlopen(req, timeout=120) as response:
             res_body = response.read().decode('utf-8')
             res_json = json.loads(res_body)
-            return res_json.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            choice = res_json.get('choices', [{}])[0]
+            finish_reason = choice.get('finish_reason', 'unknown')
+            content = choice.get('message', {}).get('content', '').strip()
+            
+            # Diagnostic: warn if model hit token limit (reasoning ate all tokens)
+            if finish_reason == 'length':
+                usage = res_json.get('usage', {})
+                print(f"    ⚠️ finish_reason=length (completion_tokens={usage.get('completion_tokens', '?')}). 模型推理耗盡 token。")
+            
+            return content
     except Exception as e:
-        print(f"    ❌ 呼叫 Local Qwen36 失敗 (請確認 llama.cpp docker 容器是否在 {LLM_API_URL} 啟動): {e}")
+        print(f"    ❌ 呼叫 LLM 失敗 (請確認 llama.cpp 是否在 {LLM_API_URL} 啟動): {e}")
         return None
 
 def build_prompt(clinic_name, dept, intro, latest_post):
@@ -280,7 +295,7 @@ def main():
         print("  - 沒有需要生成文案的診所。")
         return
         
-    print(f"🤖 使用 Local LLM 模型: llama-qwen36 ({LLM_API_URL})")
+    print(f"🤖 使用 Local LLM 模型: ({LLM_API_URL})")
     
     newly_saved = 0
     success_count = 0
