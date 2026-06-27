@@ -125,3 +125,38 @@ PYTHONPATH=. pytest tests/test_fallback.py tests/test_backoff.py tests/test_camp
 - `pipeline_textbox_failed.png` — 輸入框定位失敗
 - `pipeline_failed_*.png` — 發送被限制
 - `pipeline_sent_*.png` — 發送成功確認
+
+---
+
+## 📝 開發與討論紀錄 (Development & Discussion Records)
+
+### 📅 2026-06-27 更新：資料庫遷移、A/B 測試與 Hermes 整合 (SQLite, A/B Testing, and Hermes Integration)
+
+#### 1. 🗄️ SQLite 資料庫遷移 (SQLite Database Migration)
+- **中**: 已建立 [db.py](file:///home/hsuyungfeng/DevSoft/doctor-toolbox-post/db.py) 模組並將 11,870 筆診所資料匯入本地 `clinics.db`。核心流水線 [run_city_pipeline.py](file:///home/hsuyungfeng/DevSoft/doctor-toolbox-post/run_city_pipeline.py) 與批次腳本已完全遷移至 SQLite 讀寫，解決大檔案 CSV 讀寫效能與損毀風險。
+- **EN**: Created [db.py](file:///home/hsuyungfeng/DevSoft/doctor-toolbox-post/db.py) and migrated 11,870 clinics into local `clinics.db`. [run_city_pipeline.py](file:///home/hsuyungfeng/DevSoft/doctor-toolbox-post/run_city_pipeline.py) and batch scripts now read/write directly to SQLite, resolving CSV performance bottlenecks and data corruption risks.
+
+#### 2. ⚖️ A/B 測試機制 (A/B Copy Testing)
+- **中**: 實作隨機分流機制（`generic-v1` 與 `personalized-v1`）。`generic-v1` 套用通用文案，`personalized-v1` 則調用本地 LLM（Qwythos-9B）生成客製化文案，分流組別與發送狀態皆記錄於 SQLite。
+- **EN**: Implemented random A/B splits (`generic-v1` and `personalized-v1`). The `generic-v1` uses the generic template, whereas `personalized-v1` triggers the local LLM (Qwythos-9B) for customized copy. Splits are recorded in SQLite.
+
+#### 3. 🤖 Hermes Agent 整合 (Hermes Agent Setup)
+- **中**:
+  - 於 `~/.hermes/skills/` 中建立軟連結指向專案技能。
+  - 於 `~/.hermes/tools/doctor_outreach/tool.yaml` 註冊自訂工具 `doctor_outreach`。
+  - 確認 Hermes 預設使用本地 `llama-qwen36` 容器作為 LLM 引擎。
+- **EN**:
+  - Linked the project skill in `~/.hermes/skills/`.
+  - Registered a custom tool named `doctor_outreach` in `~/.hermes/tools/doctor_outreach/tool.yaml`.
+  - Verified Hermes uses the local `llama-qwen36` container as its default LLM.
+
+#### 4. 🧭 外展管道與防封鎖策略建議 (Outreach Channels & Safety Strategy)
+- **💬 Messenger 私訊 (Messenger DM)** ⭐ **最優選 / Priority**:
+  - **中**: 一對一商務洽談，最具私密性，不易觸發檢舉封鎖，為核心推廣管道。
+  - **EN**: 1-on-1 business inquiry. Offers high privacy, lowest risk of spam flags, and acts as the primary conversion driver.
+- **📍 Google Maps 5星評論 (Google Maps 5-Star Reviews)**:
+  - **中**: Google 審查嚴格。**不可放網址或強烈廣告詞**，否則會被自動隱藏（Shadow-ban）。建議採用「軟性病看診體驗 + 順便推薦實用 AI 語音病歷工具」的客觀口吻撰寫評論。
+  - **EN**: Google filters reviews heavily. **Avoid links or hard-selling terms** to prevent shadow-bans. Write reviews using a soft tone (e.g. sharing general positive patient experience while mentioning the useful AI voice tool).
+- **📰 新聞事件/開放論壇留言 (News / Forum Comments)** ❌ **不推薦 / Not Recommended**:
+  - **中**: 討論區受眾為社會大眾，並非目標客群（醫師/院長），且新聞網站具有極強的防垃圾機器人機制，容易導致官方網域 `doctor-toolbox.com` 被永久封鎖，並損害品牌形象。
+  - **EN**: Public news boards target general audience, not clinic directors. Automated URL spamming triggers IP blocks, risks blacklisting `doctor-toolbox.com`, and damages brand reputation.
