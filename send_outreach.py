@@ -31,9 +31,57 @@ csv_header = []
 csv_rows = []
 interrupted = False
 
+USE_SQLITE = False
+
 def load_data():
-    global csv_header, csv_rows, CSV_PATH
-    print(f"📂 載入 CSV 資料庫: {CSV_PATH}")
+    global csv_header, csv_rows, CSV_PATH, USE_SQLITE
+    
+    db_file = WORKSPACE_DIR / "clinics.db"
+    if db_file.exists() and CSV_PATH != "dummy.csv" and not csv_rows:
+        import sqlite3
+        print(f"🗄️ [SQLite] 載入資料庫: {db_file}")
+        conn = sqlite3.connect(str(db_file))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM clinics")
+        rows = cursor.fetchall()
+        
+        csv_header = [
+            '醫事機構代碼', '醫事機構名稱', '醫事機構種類', '電話', '地址', 
+            '分區業務組', '特約類別', '服務項目', '診療科別', '終止合約或歇業日期', 
+            '固定看診時段', '備註', '縣市別代碼', '合約起日', 'FB_URL', 'Email', 
+            'Messenger', 'Intro', 'Latest_Post', 'Personalized_Copy', 
+            'Messenger_Status', 'Outreach_Time', 'ab_variant'
+        ]
+        
+        col_map = {
+            'id': '醫事機構代碼', 'name': '醫事機構名稱', 'category': '醫事機構種類',
+            'phone': '電話', 'address': '地址', 'division': '分區業務組',
+            'contract_type': '特約類別', 'services': '服務項目', 'specialty': '診療科別',
+            'termination_date': '終止合約或歇業日期', 'hours': '固定看診時段',
+            'notes': '備註', 'county_code': '縣市別代碼', 'start_date': '合約起日',
+            'fb_url': 'FB_URL', 'email': 'Email', 'messenger': 'Messenger',
+            'intro': 'Intro', 'latest_post': 'Latest_Post', 'personalized_copy': 'Personalized_Copy',
+            'messenger_status': 'Messenger_Status', 'outreach_time': 'Outreach_Time',
+            'ab_variant': 'ab_variant'
+        }
+        rev_map = {v: k for k, v in col_map.items()}
+        
+        csv_rows = []
+        for r in rows:
+            row_list = []
+            for col in csv_header:
+                db_col = rev_map.get(col)
+                val = r[db_col] if db_col in r.keys() else ''
+                row_list.append(str(val) if val is not None else '')
+            csv_rows.append(row_list)
+            
+        conn.close()
+        USE_SQLITE = True
+        print(f"  - 成功載入 {len(csv_rows)} 筆診所資料")
+        return
+
+    print(f"📂 [CSV] 載入資料庫: {CSV_PATH}")
     if not os.path.exists(CSV_PATH):
         local_csv = WORKSPACE_DIR / "clinics西醫.csv"
         if local_csv.exists():
@@ -83,7 +131,35 @@ def load_data():
             row.append('')
 
 def save_data():
-    print(f"\n💾 正在儲存 CSV 資料庫...")
+    global csv_header, csv_rows, CSV_PATH, USE_SQLITE
+    if USE_SQLITE:
+        import sqlite3
+        db_file = WORKSPACE_DIR / "clinics.db"
+        print(f"💾 [SQLite] 儲存資料庫...")
+        conn = sqlite3.connect(str(db_file))
+        cursor = conn.cursor()
+        
+        idx_id = csv_header.index('醫事機構代碼')
+        idx_status = csv_header.index('Messenger_Status')
+        idx_time = csv_header.index('Outreach_Time')
+        
+        for row in csv_rows:
+            clinic_id = row[idx_id]
+            status_text = row[idx_status]
+            time_text = row[idx_time]
+            
+            cursor.execute("""
+            UPDATE clinics SET 
+                messenger_status = ?, outreach_time = ?
+            WHERE id = ?
+            """, (status_text, time_text, clinic_id))
+            
+        conn.commit()
+        conn.close()
+        print("  ✅ 資料庫更新完成 / Database updated.")
+        return
+
+    print(f"\n💾 [CSV] 正在儲存 CSV 資料庫...")
     try:
         temp_csv = CSV_PATH + ".tmp"
         with open(temp_csv, 'w', encoding='utf-8-sig', newline='') as f:
@@ -250,9 +326,16 @@ def main():
         copy = row[idx_copy].strip()
         status = row[idx_status].strip()
         
-        # We need a valid Messenger link, a personalized copy, and status is completely empty
-        if msg_url and msg_url != 'not_found' and msg_url.startswith('http') and copy and not status:
-            candidates.append(i)
+        # We need a valid Messenger link and a personalized copy.
+        # Dry-run: allow both empty status and 'sent' status (for re-testing).
+        # Normal mode: only empty status.
+        if msg_url and msg_url != 'not_found' and msg_url.startswith('http') and copy:
+            if args.dry_run:
+                if status in ('', 'sent'):
+                    candidates.append(i)
+            else:
+                if not status:
+                    candidates.append(i)
             
     print(f"\n📊 待發送的 Messenger 開發候選名單: {len(candidates)} 筆")
     if not candidates:

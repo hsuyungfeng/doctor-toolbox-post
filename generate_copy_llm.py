@@ -11,6 +11,7 @@ import sys
 import signal
 import urllib.request
 import urllib.parse
+import random
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator, ValidationError
 
@@ -77,9 +78,57 @@ class ClinicCopySchema(BaseModel):
                 
         return val
 
+USE_SQLITE = False
+
 def load_data():
-    global csv_header, csv_rows, CSV_PATH
-    print(f"📂 載入 CSV 資料庫: {CSV_PATH}")
+    global csv_header, csv_rows, CSV_PATH, USE_SQLITE
+    
+    db_file = WORKSPACE_DIR / "clinics.db"
+    if db_file.exists() and CSV_PATH != "dummy.csv" and not csv_rows:
+        import sqlite3
+        print(f"🗄️ [SQLite] 載入資料庫: {db_file}")
+        conn = sqlite3.connect(str(db_file))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM clinics")
+        rows = cursor.fetchall()
+        
+        csv_header = [
+            '醫事機構代碼', '醫事機構名稱', '醫事機構種類', '電話', '地址', 
+            '分區業務組', '特約類別', '服務項目', '診療科別', '終止合約或歇業日期', 
+            '固定看診時段', '備註', '縣市別代碼', '合約起日', 'FB_URL', 'Email', 
+            'Messenger', 'Intro', 'Latest_Post', 'Personalized_Copy', 
+            'Messenger_Status', 'Outreach_Time', 'ab_variant'
+        ]
+        
+        col_map = {
+            'id': '醫事機構代碼', 'name': '醫事機構名稱', 'category': '醫事機構種類',
+            'phone': '電話', 'address': '地址', 'division': '分區業務組',
+            'contract_type': '特約類別', 'services': '服務項目', 'specialty': '診療科別',
+            'termination_date': '終止合約或歇業日期', 'hours': '固定看診時段',
+            'notes': '備註', 'county_code': '縣市別代碼', 'start_date': '合約起日',
+            'fb_url': 'FB_URL', 'email': 'Email', 'messenger': 'Messenger',
+            'intro': 'Intro', 'latest_post': 'Latest_Post', 'personalized_copy': 'Personalized_Copy',
+            'messenger_status': 'Messenger_Status', 'outreach_time': 'Outreach_Time',
+            'ab_variant': 'ab_variant'
+        }
+        rev_map = {v: k for k, v in col_map.items()}
+        
+        csv_rows = []
+        for r in rows:
+            row_list = []
+            for col in csv_header:
+                db_col = rev_map.get(col)
+                val = r[db_col] if db_col in r.keys() else ''
+                row_list.append(str(val) if val is not None else '')
+            csv_rows.append(row_list)
+            
+        conn.close()
+        USE_SQLITE = True
+        print(f"  - 成功載入 {len(csv_rows)} 筆診所資料")
+        return
+
+    print(f"📂 [CSV] 載入資料庫: {CSV_PATH}")
     if not os.path.exists(CSV_PATH):
         local_csv = WORKSPACE_DIR / "clinics西醫.csv"
         if local_csv.exists():
@@ -117,11 +166,12 @@ def load_data():
             
     csv_rows = filtered_rows
         
-    # Ensure Personalized_Copy column exists
+    # Ensure Personalized_Copy, Intro, Latest_Post, ab_variant columns exist
     if 'Personalized_Copy' not in csv_header:
         csv_header.append('Personalized_Copy')
+    if 'ab_variant' not in csv_header:
+        csv_header.append('ab_variant')
         
-    # Ensure Intro and Latest_Post columns exist (if they weren't created by scraper)
     for col in ['Intro', 'Latest_Post']:
         if col not in csv_header:
             csv_header.append(col)
@@ -132,7 +182,35 @@ def load_data():
             row.append('')
 
 def save_data():
-    print(f"\n💾 正在儲存 CSV 資料庫...")
+    global csv_header, csv_rows, CSV_PATH, USE_SQLITE
+    if USE_SQLITE:
+        import sqlite3
+        db_file = WORKSPACE_DIR / "clinics.db"
+        print(f"💾 [SQLite] 儲存資料庫...")
+        conn = sqlite3.connect(str(db_file))
+        cursor = conn.cursor()
+        
+        idx_id = csv_header.index('醫事機構代碼')
+        idx_copy = csv_header.index('Personalized_Copy')
+        idx_ab = csv_header.index('ab_variant') if 'ab_variant' in csv_header else -1
+        
+        for row in csv_rows:
+            clinic_id = row[idx_id]
+            copy_text = row[idx_copy]
+            ab_val = row[idx_ab] if idx_ab != -1 else None
+            
+            cursor.execute("""
+            UPDATE clinics SET 
+                personalized_copy = ?, ab_variant = ?
+            WHERE id = ?
+            """, (copy_text, ab_val, clinic_id))
+            
+        conn.commit()
+        conn.close()
+        print("  ✅ 資料庫更新完成 / Database updated.")
+        return
+
+    print(f"\n💾 [CSV] 正在儲存 CSV 資料庫...")
     try:
         temp_csv = CSV_PATH + ".tmp"
         with open(temp_csv, 'w', encoding='utf-8-sig', newline='') as f:
@@ -300,6 +378,8 @@ def main():
     newly_saved = 0
     success_count = 0
     
+    idx_ab = csv_header.index('ab_variant') if 'ab_variant' in csv_header else -1
+
     for idx, row_idx in enumerate(to_process):
         if interrupted:
             break
@@ -310,22 +390,38 @@ def main():
         intro = row[idx_intro].strip()
         post = row[idx_post].strip()
         
-        # Check if both fields are empty
-        if not intro and not post:
+        ab_val = row[idx_ab].strip() if (idx_ab != -1 and len(row) > idx_ab) else ''
+        if not ab_val:
+            ab_val = random.choice(['generic-v1', 'personalized-v1'])
+            if idx_ab != -1:
+                row[idx_ab] = ab_val
+            else:
+                csv_header.append('ab_variant')
+                row.append(ab_val)
+                idx_ab = len(row) - 1
+
+        if ab_val == 'generic-v1':
             row[idx_copy] = GENERIC_COPY
-            print(f"\n[{idx+1}/{len(to_process)}] {clinic_name} ({dept}) -> Intro 與 Latest_Post 皆為空。直接套用通用開發文案。")
+            print(f"\n[{idx+1}/{len(to_process)}] {clinic_name} ({dept}) -> [A/B generic-v1] 直接套用通用文案。")
             success_count += 1
             newly_saved += 1
         else:
-            print(f"\n[{idx+1}/{len(to_process)}] 正在為 {clinic_name} ({dept}) 生成個人化開發文案...")
-            response_copy = generate_with_retry(clinic_name, dept, intro, post)
-            if response_copy:
-                row[idx_copy] = response_copy
-                print(f"    ✨ 最終文案:\n{response_copy}")
+            # Check if both fields are empty
+            if not intro and not post:
+                row[idx_copy] = GENERIC_COPY
+                print(f"\n[{idx+1}/{len(to_process)}] {clinic_name} ({dept}) -> [A/B personalized-v1] Intro 與 Latest_Post 皆為空。直接套用通用開發文案。")
                 success_count += 1
                 newly_saved += 1
             else:
-                print("    ❌ 生成失敗，跳過")
+                print(f"\n[{idx+1}/{len(to_process)}] 正在為 {clinic_name} ({dept}) [A/B personalized-v1] 生成個人化開發文案...")
+                response_copy = generate_with_retry(clinic_name, dept, intro, post)
+                if response_copy:
+                    row[idx_copy] = response_copy
+                    print(f"    ✨ 最終文案:\n{response_copy}")
+                    success_count += 1
+                    newly_saved += 1
+                else:
+                    print("    ❌ 生成失敗，跳過")
             
         if newly_saved >= 10:
             save_data()

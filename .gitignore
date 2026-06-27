@@ -9,6 +9,7 @@ browser_profile/
 # Data and Logs
 *.csv
 *.jsonl
+*.db
 processed_clinics.json
 fb_cookies.json
 *.png

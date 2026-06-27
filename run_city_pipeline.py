@@ -1,22 +1,11 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Per-Clinic Pipeline: Scrape → Generate Copy → Send → Mark (one clinic at a time)
-
-For each clinic in the target city:
-  1. Google search → find FB page
-  2. Scrape FB page → Intro, Latest_Post, Messenger link
-  3. Generate personalized copy via local LLM
-  4. Send via Facebook Messenger
-  5. Mark sent + timestamp in CSV, save immediately
-
-Usage:
-  python3 run_city_pipeline.py --city 台中 --limit 20
-  python3 run_city_pipeline.py --city 台中 --limit 5 --dry-run
-  python3 run_city_pipeline.py --city 台中 --stats
+Per-Clinic Pipeline (SQLite 版 / SQLite Version): Scrape → Generate Copy (A/B Test) → Send → Mark
+一邊處理一間診所，一邊將狀態儲存至 SQLite 資料庫，確保防當機與高可靠性。
 """
 
 import argparse
-import csv
 import json
 import os
 import random
@@ -28,27 +17,14 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
+# 載入 SQLite 資料庫管理模組 / Import database module
+import db
+
 # === Config ===
 WORKSPACE_DIR = Path(__file__).resolve().parent
-CSV_PATH = str(WORKSPACE_DIR / "clinics西醫.csv")
-CACHE_PATH = str(WORKSPACE_DIR / "clinic_links.json")
 LOG_PATH = str(WORKSPACE_DIR / "outreach_sent_log.jsonl")
 LLM_API_URL = os.environ.get("LLM_API_URL", "http://localhost:8080/v1/chat/completions")
 PROFILE_DIR = WORKSPACE_DIR / "browser_profile"
-
-# City aliases
-CITY_ALIASES = {
-    "台中": ["台中", "臺中"], "臺中": ["台中", "臺中"],
-    "台北": ["台北", "臺北"], "臺北": ["台北", "臺北"],
-    "新北": ["新北"], "桃園": ["桃園"],
-    "台南": ["台南", "臺南"], "臺南": ["台南", "臺南"],
-    "高雄": ["高雄"], "基隆": ["基隆"], "新竹": ["新竹"],
-    "嘉義": ["嘉義"], "彰化": ["彰化"], "南投": ["南投"],
-    "雲林": ["雲林"], "屏東": ["屏東"], "宜蘭": ["宜蘭"],
-    "花蓮": ["花蓮"], "苗栗": ["苗栗"],
-    "台東": ["台東", "臺東"], "臺東": ["台東", "臺東"],
-    "澎湖": ["澎湖"], "金門": ["金門"], "連江": ["連江"],
-}
 
 GENERIC_COPY = """您好！我是醫師工具箱的開發團隊。
 
@@ -78,117 +54,25 @@ def handle_signal(sig, frame):
 
 signal.signal(signal.SIGINT, handle_signal)
 
-
-# ═══════════════════════════════════════════════════════════════════
-# CSV Helpers
-# ═══════════════════════════════════════════════════════════════════
-
-def load_csv():
-    print(f"📂 載入 CSV: {CSV_PATH}")
-    with open(CSV_PATH, 'r', encoding='utf-8-sig') as f:
-        reader = csv.reader(f)
-        header = list(next(reader))
-        rows = [list(row) for row in reader]
-
-    required = ['FB_URL', 'Email', 'Messenger', 'Intro', 'Latest_Post',
-                'Personalized_Copy', 'Messenger_Status', 'Outreach_Time']
-    for col in required:
-        if col not in header:
-            header.append(col)
-    for row in rows:
-        while len(row) < len(header):
-            row.append('')
-
-    return header, rows
-
-
-def save_csv(header, rows):
-    temp = CSV_PATH + ".tmp"
-    with open(temp, 'w', encoding='utf-8-sig', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        writer.writerows(rows)
-    if os.path.exists(CSV_PATH):
-        os.remove(CSV_PATH)
-    os.rename(temp, CSV_PATH)
-
-
 def log_outreach(entry):
     with open(LOG_PATH, 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry, ensure_ascii=False) + '\n')
 
-
-def filter_city_candidates(header, rows, city):
-    """Return row indices for clinics in the city that haven't been sent yet."""
-    aliases = CITY_ALIASES.get(city, [city])
-    idx_addr = header.index('地址')
-    idx_name = header.index('醫事機構名稱')
-    idx_dept = header.index('診療科別') if '診療科別' in header else -1
-    idx_status = header.index('Messenger_Status')
-
-    candidates = []
-    for i, row in enumerate(rows):
-        addr = row[idx_addr] if len(row) > idx_addr else ''
-        name = row[idx_name] if len(row) > idx_name else ''
-        dept = row[idx_dept] if idx_dept >= 0 and len(row) > idx_dept else ''
-        status = row[idx_status].strip()
-
-        # Skip TCM / dentist
-        if any(t in name or t in dept for t in ["中醫", "牙醫", "牙科"]):
-            continue
-        # Skip already sent
-        if status in ('sent', 'dry_run'):
-            continue
-        # Must be in target city
-        if any(alias in addr for alias in aliases):
-            candidates.append(i)
-
-    return candidates
-
-
-def show_stats(header, rows, city):
-    aliases = CITY_ALIASES.get(city, [city])
-    idx_addr = header.index('地址')
-    idx_name = header.index('醫事機構名稱')
-    idx_dept = header.index('診療科別') if '診療科別' in header else -1
-    idx_fb = header.index('FB_URL')
-    idx_msg = header.index('Messenger')
-    idx_copy = header.index('Personalized_Copy')
-    idx_status = header.index('Messenger_Status')
-
-    total = has_fb = has_msg = has_copy = sent = 0
-
-    for row in rows:
-        addr = row[idx_addr]
-        name = row[idx_name]
-        dept = row[idx_dept] if idx_dept >= 0 else ''
-        if any(t in name or t in dept for t in ["中醫", "牙醫", "牙科"]):
-            continue
-        if not any(a in addr for a in aliases):
-            continue
-
-        total += 1
-        fb = row[idx_fb].strip()
-        if fb and fb != 'not_found': has_fb += 1
-        msg = row[idx_msg].strip()
-        if msg and msg != 'not_found' and msg.startswith('http'): has_msg += 1
-        if row[idx_copy].strip(): has_copy += 1
-        if row[idx_status].strip() in ('sent', 'dry_run'): sent += 1
-
+def show_stats(city):
+    stats = db.get_city_stats(city)
     print(f"\n{'='*60}")
-    print(f"📊 {city} 診所統計")
+    print(f"📊 {city} 診所統計 (SQLite)")
     print(f"{'='*60}")
-    print(f"  診所總數 (排除中醫/牙醫):  {total}")
-    print(f"  已有 FB 頁面:              {has_fb}")
-    print(f"  已有 Messenger:            {has_msg}")
-    print(f"  已有文案:                  {has_copy}")
-    print(f"  已發送:                    {sent}")
-    print(f"  待處理:                    {total - sent}")
+    print(f"  診所總數 (排除中醫/牙醫):  {stats['total']}")
+    print(f"  已有 FB 頁面:              {stats['has_fb']}")
+    print(f"  已有 Messenger:            {stats['has_msg']}")
+    print(f"  已有個人化文案:            {stats['has_copy']}")
+    print(f"  已發送 (sent/dry_run):     {stats['sent']}")
+    print(f"  待處理:                    {stats['total'] - stats['sent']}")
     print(f"{'='*60}")
-
 
 # ═══════════════════════════════════════════════════════════════════
-# Step 1: Scrape FB (reuse logic from scrape_fb_info.py)
+# Step 1: Scrape FB (Google & FB crawler)
 # ═══════════════════════════════════════════════════════════════════
 
 def search_clinic_facebook(page, clinic_name):
@@ -240,7 +124,6 @@ def search_clinic_facebook(page, clinic_name):
         if "closed" in err or "context" in err or "blocked" in err:
             raise
         return None
-
 
 def scrape_fb_page_details(page, fb_url, clinic_name):
     """Scrape Email, Messenger, Intro, Latest Post from FB page."""
@@ -333,7 +216,6 @@ def scrape_fb_page_details(page, fb_url, clinic_name):
             raise
         return {'email': '', 'messenger': '', 'intro': '', 'latest_post': ''}
 
-
 # ═══════════════════════════════════════════════════════════════════
 # Step 2: Generate Copy via LLM
 # ═══════════════════════════════════════════════════════════════════
@@ -365,9 +247,8 @@ def call_local_llm(prompt):
                 print(f"    ⚠️ finish_reason=length (tokens={usage.get('completion_tokens', '?')})")
             return content
     except Exception as e:
-        print(f"    ❌ LLM 呼叫失敗: {e}")
+        print(f"    ❌ LLM 呼叫失敗 (Local LLM API error): {e}")
         return None
-
 
 def build_prompt(clinic_name, dept, intro, latest_post):
     return f"""你是一位專業的醫療行銷顧問。請根據以下診所的資訊，為其推薦「醫師工具箱（AI SOAP 語音病歷生成工具）」生成一段專屬的行銷開發文案。
@@ -398,7 +279,6 @@ def build_prompt(clinic_name, dept, intro, latest_post):
 5. 嚴禁包含醫療法禁用的誇大詞彙（如「最佳」、「最先進」、「保證療效」、「根治」、「全台第一」）。
 
 請只輸出 JSON 格式的內容，不要有任何多餘的解釋或前言後語。"""
-
 
 def generate_copy(clinic_name, dept, intro, latest_post):
     """Generate copy with retry. Returns copy string or GENERIC_COPY on failure."""
@@ -434,8 +314,11 @@ def generate_copy(clinic_name, dept, intro, latest_post):
                 raise ValueError(f"文案太短 ({len(copy)} 字)")
 
             # Simplified Chinese check
-            simplified = ["亲", "医", "这", "国", "诊", "体", "会", "电", "话", "设", "备", "进", "专", "优", "疗"]
-            for c in simplified:
+            simplified = ["亲", "医", "这", "国", "诊", "体", "会", "电", "话", "设", "备", "进", "专", "优", "療"]
+            # Exclude standard Chinese characters from check if they are false positives, 
+            # but keep critical simplified tokens check
+            critical_simplified = ["亲", "医", "这", "国", "诊", "体", "会", "电", "话", "设", "备", "无", "们", "来", "为"]
+            for c in critical_simplified:
                 if c in copy:
                     raise ValueError(f"檢測到簡體字：'{c}'")
 
@@ -447,14 +330,12 @@ def generate_copy(clinic_name, dept, intro, latest_post):
     print("    ❌ 嘗試次數耗盡，使用通用文案")
     return GENERIC_COPY
 
-
 # ═══════════════════════════════════════════════════════════════════
-# Step 3: Send Messenger
+# Step 3: Send Messenger (simulating human typing)
 # ═══════════════════════════════════════════════════════════════════
 
 def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
     """Open Messenger chat, type copy, send it. Returns (success, status)."""
-    # Convert m.me → facebook.com/messages/t/
     target_url = messenger_url
     if "facebook.com/messages/t/" not in messenger_url:
         parts = messenger_url.rstrip('/').split('/')
@@ -463,17 +344,17 @@ def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
             if username:
                 target_url = f"https://www.facebook.com/messages/t/{username}"
 
-    print(f"  📤 開啟: {target_url}")
+    print(f"  📤 開啟 Messenger 私訊連結: {target_url}")
     page.goto(target_url)
     time.sleep(10)
 
-    # Check login
+    # Check login status
     is_login = page.evaluate("""() => {
         const text = document.body.innerText;
         return text.includes('登入 Facebook') || text.includes('Log In') || !!document.querySelector('#login_form');
     }""")
     if is_login:
-        print("  ⚠️ 未登入！請先執行 import_cookies.py")
+        print("  ⚠️ 未登入！請先執行 python3 import_cookies.py 匯入 FB Cookie。")
         return False, "login_required"
 
     # Locate textbox and insert text
@@ -498,17 +379,17 @@ def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
 
     if not inserted:
         page.screenshot(path="/tmp/pipeline_textbox_failed.png")
-        print("  ❌ 找不到輸入框")
+        print("  ❌ 找不到 Messenger 輸入框")
         return False, "textbox_not_found"
 
     time.sleep(2)
 
     if dry_run:
         page.screenshot(path="/tmp/pipeline_dryrun.png")
-        print("  🧪 [DRY-RUN] 文案已貼上，跳過發送")
+        print("  🧪 [DRY-RUN] 文案已貼上至輸入框，跳過發送")
         return True, "dry_run"
 
-    # Send
+    # Send message
     print("  🚀 發送中...")
     page.keyboard.press("Enter")
     time.sleep(3)
@@ -521,7 +402,7 @@ def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
     }""")
     time.sleep(5)
 
-    # Verify delivery
+    # Verify delivery outcome
     failed = page.evaluate("""() => {
         const text = document.body.innerText;
         const kws = ['無法傳送', '無法送出', '你目前無法使用此功能', '暫時被限制',
@@ -533,24 +414,23 @@ def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
     if failed:
         ss = f"/tmp/pipeline_failed_{int(time.time())}.png"
         page.screenshot(path=ss)
-        print(f"  🛑 發送失敗: {failed} (截圖: {ss})")
+        print(f"  🛑 發送失敗: {failed} (詳細截圖已存至: {ss})")
         return False, "delivery_failed"
 
     ss = f"/tmp/pipeline_sent_{int(time.time())}.png"
     page.screenshot(path=ss)
-    print(f"  ✅ 發送成功！截圖: {ss}")
+    print(f"  ✅ 發送成功！截圖存至: {ss}")
     return True, "sent"
 
-
 # ═══════════════════════════════════════════════════════════════════
-# Main Pipeline
+# Main Pipeline Orchestrator (SQLite版)
 # ═══════════════════════════════════════════════════════════════════
 
 def main():
-    parser = argparse.ArgumentParser(description="逐診所完整流水線：爬取→文案→貼文→標記")
+    parser = argparse.ArgumentParser(description="逐診所完整流水線（SQLite版）：爬取→文案（A/B測試）→發送→資料庫標記")
     parser.add_argument("--city", required=True, help="目標城市 (如：台中, 台北, 高雄)")
     parser.add_argument("--limit", type=int, default=20, help="處理上限筆數 (預設 20)")
-    parser.add_argument("--dry-run", action="store_true", help="測試模式，不實際發送")
+    parser.add_argument("--dry-run", action="store_true", help="測試模式，不實際送出 Messenger")
     parser.add_argument("--stats", action="store_true", help="僅顯示統計")
     parser.add_argument("--delay-min", type=int, default=300, help="訊息間最小延遲秒數 (預設 300)")
     parser.add_argument("--delay-max", type=int, default=600, help="訊息間最大延遲秒數 (預設 600)")
@@ -558,42 +438,25 @@ def main():
 
     city = args.city
     print("=" * 60)
-    print(f"🏥 醫師工具箱 — {city} 逐診所流水線")
+    print(f"🏥 醫師工具箱 — {city} 逐診所流水線 (SQLite Database Backend)")
     print(f"   模式: {'🧪 DRY-RUN' if args.dry_run else '🚀 正式'} | 上限: {args.limit} 筆")
     print("=" * 60)
 
-    header, rows = load_csv()
-    print(f"  CSV 共 {len(rows)} 筆")
-
-    show_stats(header, rows, city)
+    # 1. 顯示該城市的統計狀態 / Display county stats
+    show_stats(city)
 
     if args.stats:
         return
 
-    candidates = filter_city_candidates(header, rows, city)
-    print(f"\n📋 {city} 待處理候選: {len(candidates)} 筆")
+    # 2. 獲取待處理名單 / Query candidate list
+    to_process = db.get_city_candidates(city, args.limit)
+    print(f"\n📋 {city} 待處理候選: {len(to_process)} 筆")
 
-    if not candidates:
-        print("✅ 沒有待處理的診所")
+    if not to_process:
+        print("✅ 沒有待處理的診所候選名單 / No pending candidates.")
         return
 
-    to_process = candidates[:args.limit]
-    print(f"🎬 本次處理: {len(to_process)} 筆\n")
-
-    # Column indices
-    idx_name = header.index('醫事機構名稱')
-    idx_addr = header.index('地址')
-    idx_dept = header.index('診療科別') if '診療科別' in header else -1
-    idx_fb = header.index('FB_URL')
-    idx_email = header.index('Email')
-    idx_msg = header.index('Messenger')
-    idx_intro = header.index('Intro')
-    idx_post = header.index('Latest_Post')
-    idx_copy = header.index('Personalized_Copy')
-    idx_status = header.index('Messenger_Status')
-    idx_time = header.index('Outreach_Time')
-
-    # Launch browser
+    # 3. 啟動瀏覽器 / Launch CloakBrowser
     print(f"🚀 啟動 CloakBrowser (profile: {PROFILE_DIR})...")
     from cloakbrowser import launch_persistent_context
     try:
@@ -615,149 +478,150 @@ def main():
     fail_count = 0
     consecutive_failures = 0
 
-    for seq, row_idx in enumerate(to_process):
+    # 4. 逐診所執行 / Loop clinics
+    for seq, row in enumerate(to_process):
         if interrupted:
             print("\n🛑 中斷訊號，安全退出...")
             break
 
         if consecutive_failures >= 3:
-            print("\n🛑 連續 3 次失敗，觸發安全斷路器，停止執行")
+            print("\n🛑 連續 3 次發送失敗，觸發斷路器安全限制 (Halt Circuit Breaker)！終止執行。")
             break
 
-        row = rows[row_idx]
-        name = row[idx_name].strip()
-        addr = row[idx_addr].strip()
-        dept = row[idx_dept].strip() if idx_dept >= 0 else ''
+        clinic_id = row['id']
+        name = row['name']
+        addr = row['address']
+        dept = row['specialty'] or '一般科'
+        fb_url = row['fb_url']
+        messenger = row['messenger']
+        intro = row['intro']
+        post_text = row['latest_post']
+        copy = row['personalized_copy']
+        ab_variant = row['ab_variant']
 
         print(f"\n{'━'*60}")
         print(f"[{seq+1}/{len(to_process)}] 🏥 {name} ({dept})")
         print(f"  📍 {addr}")
         print(f"{'━'*60}")
 
-        # ─── 1. Scrape FB ───
-        fb_url = row[idx_fb].strip()
-        messenger = row[idx_msg].strip()
-        intro = row[idx_intro].strip()
-
-        if not fb_url or fb_url == 'not_found':
+        # ─── 步驟 1: 尋找與爬取 FB 專頁 / Scrape FB ───
+        fb_valid = fb_url and fb_url != 'not_found'
+        if not fb_valid:
             print("  🔍 步驟 1: 搜尋 Facebook 頁面...")
             fb_url = search_clinic_facebook(page, name)
 
             if fb_url:
                 print(f"  ✅ 找到 FB: {fb_url}")
-                row[idx_fb] = fb_url
-
                 print("  🔍 步驟 1b: 爬取 FB 頁面詳情...")
                 details = scrape_fb_page_details(page, fb_url, name)
-                row[idx_email] = details.get('email', '')
+                
+                email = details.get('email', '')
                 messenger = details.get('messenger', '')
-                row[idx_msg] = messenger
                 intro = details.get('intro', '')
-                row[idx_intro] = intro
-                row[idx_post] = details.get('latest_post', '')
+                post_text = details.get('latest_post', '')
+                
+                db.update_clinic_fb(clinic_id, email, messenger, intro, post_text, fb_url=fb_url)
                 print(f"    Messenger: {messenger}")
                 print(f"    Intro: {intro[:60]}..." if intro else "    Intro: (空)")
             else:
                 print("  ❌ 未找到 FB 頁面")
-                row[idx_fb] = 'not_found'
-                row[idx_status] = 'no_fb'
-                row[idx_time] = datetime.now().isoformat()
-                save_csv(header, rows)
+                db.update_clinic_status(clinic_id, 'no_fb', datetime.now().isoformat())
+                db.update_clinic_fb_url(clinic_id, 'not_found')
                 fail_count += 1
                 continue
         else:
             print(f"  ✅ 步驟 1: FB 已存在 ({fb_url})")
-            # Still scrape if missing messenger/intro
+            # 補爬欄位 / Supplement missing info
             if (not messenger or messenger == 'not_found') or (not intro or intro == 'not_found'):
                 print("  🔍 步驟 1b: 補充爬取 FB 頁面詳情...")
                 details = scrape_fb_page_details(page, fb_url, name)
+                
+                email = details.get('email', '') or row['email']
                 if not messenger or messenger == 'not_found':
                     messenger = details.get('messenger', '')
-                    row[idx_msg] = messenger
                 if not intro or intro == 'not_found':
                     intro = details.get('intro', '')
-                    row[idx_intro] = intro
-                    row[idx_post] = details.get('latest_post', '') or row[idx_post]
+                    post_text = details.get('latest_post', '') or post_text
+                
+                db.update_clinic_fb(clinic_id, email, messenger, intro, post_text)
 
-        # Check Messenger link
+        # 驗證 Messenger 連結 / Validate Messenger link
         msg_valid = messenger and messenger != 'not_found' and messenger.startswith('http')
         if not msg_valid:
             print("  ⚠️ 無 Messenger 連結，跳過此診所")
-            row[idx_status] = 'no_messenger'
-            row[idx_time] = datetime.now().isoformat()
-            save_csv(header, rows)
+            db.update_clinic_status(clinic_id, 'no_messenger', datetime.now().isoformat())
             fail_count += 1
             continue
 
-        # ─── 2. Generate Copy ───
-        copy = row[idx_copy].strip()
+        # ─── 步驟 2: A/B 測試文案生成與管理 / A/B Copywriting ───
         if not copy:
-            print("  ✍️ 步驟 2: 生成個人化文案...")
-            post_text = row[idx_post].strip()
-            copy = generate_copy(name, dept, intro, post_text)
-            row[idx_copy] = copy
-            print(f"    文案 ({len(copy)} 字): {copy[:80]}...")
+            print("  ✍️ 步驟 2: 分流並生成行銷文案...")
+            # 若無分組，隨機指派 A/B 組別 / Assign random A/B variant if empty
+            if not ab_variant:
+                ab_variant = random.choice(['generic-v1', 'personalized-v1'])
+                
+            if ab_variant == 'generic-v1':
+                copy = GENERIC_COPY
+                print("    [A/B 組別: generic-v1] 套用通用文案模板")
+            else:
+                print("    [A/B 組別: personalized-v1] 調用本地 LLM 生成個人化文案...")
+                copy = generate_copy(name, dept, intro, post_text)
+                
+            db.update_clinic_copy(clinic_id, copy, ab_variant)
+            print(f"    最終選定文案 ({len(copy)} 字): {copy[:80]}...")
         else:
-            print(f"  ✅ 步驟 2: 文案已存在 ({len(copy)} 字)")
+            print(f"  ✅ 步驟 2: 文案已存在 (組別: {ab_variant}, {len(copy)} 字)")
 
-        # ─── 3. Send ───
-        print(f"  📤 步驟 3: {'DRY-RUN' if args.dry_run else '發送'} Messenger 訊息...")
+        # ─── 步驟 3: 模擬真人發送 / Send Outreach ───
+        print(f"  📤 步驟 3: {'DRY-RUN 測試' if args.dry_run else '正式發送'} Messenger 訊息...")
         ok, status = send_messenger_message(page, messenger, copy, dry_run=args.dry_run)
 
-        # ─── 4. Mark ───
-        row[idx_status] = status
-        row[idx_time] = datetime.now().isoformat()
+        # ─── 步驟 4: 更新狀態標記與日誌 / Save Status ───
+        db.update_clinic_status(clinic_id, status, datetime.now().isoformat())
 
-        # Save immediately after each clinic
-        save_csv(header, rows)
-
-        # Log
+        # 紀錄日誌 / Log outreach entry
         log_outreach({
+            'clinic_id': clinic_id,
             'clinic_name': name,
             'city': city,
             'dept': dept,
             'messenger': messenger,
             'status': status,
+            'ab_variant': ab_variant,
             'timestamp': datetime.now().isoformat(),
         })
 
         if ok:
             success_count += 1
             consecutive_failures = 0
-            print(f"  ✅ 步驟 4: 已標記 status={status}, time={row[idx_time]}")
+            print(f"  ✅ 步驟 4: 資料庫更新成功 status={status}")
         else:
             fail_count += 1
             consecutive_failures += 1
-            print(f"  ❌ 步驟 4: 已標記 status={status}")
+            print(f"  ❌ 步驟 4: 資料庫發送失敗 status={status}")
 
-            if status == "delivery_failed":
-                print("  🛑 FB 發送被限制，進入加倍冷卻期...")
-
-        # Delay before next clinic (skip if last one)
+        # 診所與診所之間的發送隨機延遲冷卻 / Random delay between clinics
         if seq < len(to_process) - 1 and not interrupted:
             delay = random.randint(args.delay_min, args.delay_max)
-            print(f"\n  ⏳ 冷卻 {delay} 秒 ({delay/60:.1f} 分鐘) 後處理下一間...")
+            print(f"\n  ⏳ 慢速冷卻中... {delay} 秒 ({delay/60:.1f} 分鐘) 後處理下一間...")
             for _ in range(delay):
                 if interrupted:
                     break
                 time.sleep(1)
 
-    # Cleanup
+    # 關閉瀏覽器 / Close browser
     try:
         browser.close()
     except:
         pass
 
-    # Final stats
+    # 最終狀態回報 / Final stats
     print(f"\n{'='*60}")
-    print(f"🏁 {city} 流水線完成！")
+    print(f"🏁 {city} 逐診所行銷流水線執行完畢！")
     print(f"  ✅ 成功: {success_count}")
     print(f"  ❌ 失敗: {fail_count}")
     print(f"{'='*60}")
-
-    header, rows = load_csv()
-    show_stats(header, rows, city)
-
+    show_stats(city)
 
 if __name__ == "__main__":
     main()
