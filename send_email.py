@@ -18,8 +18,8 @@ from pathlib import Path
 # Set these environment variables or fill them in below for production
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))  # 587 for TLS, 465 for SSL
-SMTP_USER = os.environ.get("SMTP_USER", "")          # E.g., your-email@gmail.com
-SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")  # E.g., App Password
+SMTP_USER = os.environ.get("SMTP_USER", "hsu.yungfeng63@gmail.com")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "htjvszgyhsghaqma")
 
 DEFAULT_SENDER = SMTP_USER or "noreply@doctor-toolbox.com"
 
