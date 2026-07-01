@@ -37,7 +37,7 @@ For each clinic in target city:
 | **Outreach Log** | `./outreach_sent_log.jsonl` |
 | **Local LLM** | `http://localhost:8080/v1/chat/completions` (Qwythos-9B reasoning model) |
 | **LLM max_tokens** | `1024` (must be ≥1024 — reasoning model uses tokens for chain-of-thought) |
-| **Venv Python** | `./.venv/bin/python3` |
+| **Python Environment** | `python3` (Uses system python environment) |
 
 ---
 
@@ -56,7 +56,7 @@ This is the **recommended** script for all outreach operations. It handles the c
    - Log in to Facebook in your regular browser
    - Export cookies via Cookie-Editor extension → JSON
    - Save to `./fb_cookies.json`
-   - Run: `./.venv/bin/python3 import_cookies.py`
+   - Run: `python3 import_cookies.py`
 
 3. **Verify LLM is running**:
    ```bash
@@ -65,17 +65,17 @@ This is the **recommended** script for all outreach operations. It handles the c
 
 ### Step 1: Check city stats
 ```bash
-./.venv/bin/python3 run_city_pipeline.py --city 台中 --stats
+python3 run_city_pipeline.py --city 台中 --stats
 ```
 
 ### Step 2: Dry-run test (verify without sending)
 ```bash
-./.venv/bin/python3 run_city_pipeline.py --city 台中 --limit 3 --dry-run --delay-min 10 --delay-max 20
+python3 run_city_pipeline.py --city 台中 --limit 3 --dry-run --delay-min 10 --delay-max 20
 ```
 
-### Step 3: Full campaign
+### Step 3: Full campaign (SLOW & SAFE)
 ```bash
-./.venv/bin/python3 run_city_pipeline.py --city 台中 --limit 20
+python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 300 --delay-max 600
 ```
 
 ### All CLI options
@@ -95,23 +95,24 @@ This is the **recommended** script for all outreach operations. It handles the c
 
 ## 🤖 Hermes / Autonomous Agent Long-Term Operation
 
-When running as an autonomous agent (Hermes, `/goal`, or background task), follow this protocol:
+When running as an autonomous agent (Hermes, `/goal`, or background task), follow this protocol to send messages slowly and safely:
 
 ### Safety & Execution Recommendations
 
 To prevent Facebook account restrictions and Google CAPTCHA blocks, follow these safe execution limits:
-- **Maximum per run**: 5 clinics at a time.
+- **Maximum per run**: 3-5 clinics at a time (strongly recommended).
 - **Estimated time**: ~30-50 minutes per 5 clinics (includes Google search, FB scrape, sending, and cooldowns).
-- **Daily maximum**: 15-20 clinics max per day. Start with 5-10 clinics in the first few days to warm up the account.
+- **Daily maximum**: 10-15 clinics max per day. Start with 5 clinics in the first few days to warm up the account.
+- **Outreach Delays**: Always use a slow delay between messages: `--delay-min 300 --delay-max 600` (5 to 10 minutes) or even slower like `--delay-min 600 --delay-max 1200` (10 to 20 minutes).
 - **Why**: The pipeline performs Google searches to find FB pages. Too many consecutive searches trigger Google CAPTCHA blocks. Too many FB messages in a short time trigger FB spam filters.
 
-### Autonomous execution command
+### Autonomous execution command (SLOW & SAFE)
 ```bash
-# Run 50 clinics in 台中 (will take ~4-8 hours with delays)
-./.venv/bin/python3 run_city_pipeline.py --city 台中 --limit 50
+# Run 5 clinics in 台中 slowly (will take ~1-2 hours with delays)
+python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 300 --delay-max 600
 
-# Run with shorter delays (more aggressive, higher risk)
-./.venv/bin/python3 run_city_pipeline.py --city 台中 --limit 50 --delay-min 180 --delay-max 300
+# Extremely safe mode (longer delays)
+python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 600 --delay-max 1200
 ```
 
 ### Safety mechanisms (built into the script)
@@ -135,13 +136,13 @@ IF all clinics processed:
   → Report stats and move to next city
 ```
 
-### Multi-city campaign sequence
+### Multi-city campaign sequence (SLOW & SAFE)
 ```bash
-# Run cities one at a time:
-./.venv/bin/python3 run_city_pipeline.py --city 台中 --limit 50
-./.venv/bin/python3 run_city_pipeline.py --city 台北 --limit 50
-./.venv/bin/python3 run_city_pipeline.py --city 新北 --limit 50
-./.venv/bin/python3 run_city_pipeline.py --city 高雄 --limit 50
+# Run cities one at a time with low limit (5) and slow delays:
+python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 300 --delay-max 600
+python3 run_city_pipeline.py --city 台北 --limit 5 --delay-min 300 --delay-max 600
+python3 run_city_pipeline.py --city 新北 --limit 5 --delay-min 300 --delay-max 600
+python3 run_city_pipeline.py --city 高雄 --limit 5 --delay-min 300 --delay-max 600
 ```
 
 ---
@@ -152,13 +153,13 @@ These scripts can be used to run individual pipeline steps independently:
 
 | Script | Purpose | Command |
 |--------|---------|---------|
-| `scrape_fb_info.py` | Scrape FB pages (batch) | `./.venv/bin/python3 scrape_fb_info.py` |
-| `generate_copy_llm.py` | Generate LLM copy (batch) | `./.venv/bin/python3 generate_copy_llm.py` |
-| `send_outreach.py` | Send Messenger (batch) | `./.venv/bin/python3 send_outreach.py --limit 10` |
-| `run_campaign.py` | Orchestrate all 3 steps sequentially | `./.venv/bin/python3 run_campaign.py --limit 10` |
-| `run_city_campaign.py` | City-filtered batch orchestrator | `./.venv/bin/python3 run_city_campaign.py --city 台中 --limit 20` |
-| `post_clinics.py` | FB page comment posting (not Messenger) | `./.venv/bin/python3 post_clinics.py` |
-| `import_cookies.py` | Import FB cookies into browser profile | `./.venv/bin/python3 import_cookies.py` |
+| `scrape_fb_info.py` | Scrape FB pages (batch) | `python3 scrape_fb_info.py` |
+| `generate_copy_llm.py` | Generate LLM copy (batch) | `python3 generate_copy_llm.py` |
+| `send_outreach.py` | Send Messenger (batch) | `python3 send_outreach.py --limit 5` |
+| `run_campaign.py` | Orchestrate all 3 steps sequentially | `python3 run_campaign.py --limit 5` |
+| `run_city_campaign.py` | City-filtered batch orchestrator | `python3 run_city_campaign.py --city 台中 --limit 5` |
+| `post_clinics.py` | FB page comment posting (not Messenger) | `python3 post_clinics.py` |
+| `import_cookies.py` | Import FB cookies into browser profile | `python3 import_cookies.py` |
 
 ---
 

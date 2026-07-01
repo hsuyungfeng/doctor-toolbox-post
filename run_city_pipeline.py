@@ -26,24 +26,33 @@ LOG_PATH = str(WORKSPACE_DIR / "outreach_sent_log.jsonl")
 LLM_API_URL = os.environ.get("LLM_API_URL", "http://localhost:8080/v1/chat/completions")
 PROFILE_DIR = WORKSPACE_DIR / "browser_profile"
 
-GENERIC_COPY = """您好！我是醫師工具箱的開發團隊。
+GENERIC_COPY = """🩺 看診對話，自動變成 SOAP 病歷
 
-我們開發了一套 AI 語音病歷生成工具，可以幫診所：
+每次看診都要手寫病歷？花掉你一半的時間？
+現在，醫師工具箱幫你自動搞定。
 
-🎙️ 語音即時轉錄 → AI 自動生成 SOAP 病歷
-💬 LINE OA 整合 → 自動回覆患者常見問題
-📋 病史整合 → 患者病史一鍵掌握
+🎙️ 語音即時記錄 → AI 轉成結構化 SOAP 病歷
+看診過程自然對話，不用打字、不用分心。
 
-特點：
-✅ 任何系統都能橋接，不須更換 HIS
-✅ 符合健保規範的 SOAP 病歷格式
-✅ 高用量方案（LINE + Voice Record 每月各 1000 人次）
+📱 LINE 病史整合
+病人原始病史直接同步，完整脈絡一鍵掌握，不再遺漏任何關鍵資訊。
 
-歡迎免費試用，了解醫師工具箱如何節省您的病歷時間！
+🤖 LINE OA 自動回覆
+診所常見問題（專長、看診時間、費用）自動回覆，減輕前台負擔。
 
-👉 https://doctor-toolbox.com/
+💰 高用量方案
+LINE + Voice Record 每月各 1000 人次，費用每月 1000 元。
+輕鬆應對門診需求。
 
-如有興趣歡迎回覆，或留下您的聯絡方式，我們會安排示範。"""
+🔗 任何系統都能橋接，不須更換 HIS
+
+⚠️ 建議先註冊，再免費體驗！
+避免病人資料流失，錯過每一次完整的病史記錄。
+
+👉 https://doctor-toolbox.com/ai-soap-generator
+
+徐永峰醫師監製 · 品質保證
+歡迎免費體驗分享！"""
 
 interrupted = False
 
@@ -334,7 +343,7 @@ def generate_copy(clinic_name, dept, intro, latest_post):
 # Step 3: Send Messenger (simulating human typing)
 # ═══════════════════════════════════════════════════════════════════
 
-def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
+def send_messenger_message(page, messenger_url, copy_text, dry_run=False, image_path=None):
     """Open Messenger chat, type copy, send it. Returns (success, status)."""
     target_url = messenger_url
     if "facebook.com/messages/t/" not in messenger_url:
@@ -359,29 +368,38 @@ def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
 
     # Locate textbox and insert text
     print("  🔍 定位輸入框...")
-    inserted = page.evaluate("""(textToInsert) => {
-        const boxes = Array.from(document.querySelectorAll(
-            "div[contenteditable='true'], [role='textbox'], [aria-label*='訊息'], [aria-label*='Message']"
-        ));
-        const tb = boxes.find(el => {
-            const s = window.getComputedStyle(el);
-            return s.display !== 'none' && s.visibility !== 'hidden' && el.offsetHeight > 0;
-        });
+    focused = page.evaluate("""() => {
+        const tb = document.querySelector('div[contenteditable="true"][role="textbox"]');
         if (tb) {
-            tb.focus(); tb.click();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
-            document.execCommand('insertText', false, textToInsert);
-            return true;
+            const style = window.getComputedStyle(tb);
+            if (style.display !== 'none' && style.visibility !== 'hidden' && tb.offsetHeight > 0) {
+                tb.focus();
+                tb.click();
+                document.execCommand('selectAll', false, null);
+                document.execCommand('delete', false, null);
+                return true;
+            }
         }
         return false;
-    }""", copy_text)
+    }""")
 
-    if not inserted:
+    if not focused:
         page.screenshot(path="/tmp/pipeline_textbox_failed.png")
         print("  ❌ 找不到 Messenger 輸入框")
         return False, "textbox_not_found"
 
+    # Upload image if provided and exists
+    if image_path and Path(image_path).exists() and not dry_run:
+        print(f"  📤 上傳配圖: {image_path}...")
+        try:
+            page.set_input_files('input[type="file"]', str(image_path))
+            time.sleep(5)  # Wait for Messenger to process image upload
+            print("  ✅ 配圖上傳成功")
+        except Exception as e:
+            print(f"  ⚠️ 配圖上傳失敗: {e}")
+
+    print("  📝 聚焦成功，使用 page.keyboard.insert_text() 插入文字...")
+    page.keyboard.insert_text(copy_text)
     time.sleep(2)
 
     if dry_run:
@@ -434,6 +452,7 @@ def main():
     parser.add_argument("--stats", action="store_true", help="僅顯示統計")
     parser.add_argument("--delay-min", type=int, default=300, help="訊息間最小延遲秒數 (預設 300)")
     parser.add_argument("--delay-max", type=int, default=600, help="訊息間最大延遲秒數 (預設 600)")
+    parser.add_argument("--image", type=str, default="/home/hsuyungfeng/DevSoft/doctor-toolbox-post/assets/doctor-toolbox-post.png", help="廣告配圖路徑 (預設為 assets 下的圖)")
     args = parser.parse_args()
 
     city = args.city
@@ -545,14 +564,6 @@ def main():
                 
                 db.update_clinic_fb(clinic_id, email, messenger, intro, post_text)
 
-        # 驗證 Messenger 連結 / Validate Messenger link
-        msg_valid = messenger and messenger != 'not_found' and messenger.startswith('http')
-        if not msg_valid:
-            print("  ⚠️ 無 Messenger 連結，跳過此診所")
-            db.update_clinic_status(clinic_id, 'no_messenger', datetime.now().isoformat())
-            fail_count += 1
-            continue
-
         # ─── 步驟 2: A/B 測試文案生成與管理 / A/B Copywriting ───
         if not copy:
             print("  ✍️ 步驟 2: 分流並生成行銷文案...")
@@ -573,8 +584,31 @@ def main():
             print(f"  ✅ 步驟 2: 文案已存在 (組別: {ab_variant}, {len(copy)} 字)")
 
         # ─── 步驟 3: 模擬真人發送 / Send Outreach ───
-        print(f"  📤 步驟 3: {'DRY-RUN 測試' if args.dry_run else '正式發送'} Messenger 訊息...")
-        ok, status = send_messenger_message(page, messenger, copy, dry_run=args.dry_run)
+        # 驗證 Messenger 連結 / Validate Messenger link
+        msg_valid = messenger and messenger != 'not_found' and messenger.startswith('http')
+        ok = False
+        status = 'no_messenger'
+        
+        if msg_valid:
+            print(f"  📤 步驟 3: {'DRY-RUN 測試' if args.dry_run else '正式發送'} Messenger 訊息...")
+            ok, status = send_messenger_message(page, messenger, copy, dry_run=args.dry_run, image_path=args.image)
+        else:
+            print("  ⚠️ 無 Messenger 連結，將直接嘗試 FaceBook 貼文留言...")
+
+        # Fallback to Facebook Post Comment if Messenger is invalid or failed
+        if (not ok or status == 'delivery_failed' or not msg_valid) and not args.dry_run:
+            if fb_url and fb_url != 'not_found':
+                print(f"  ⚠️ Messenger 無法發送 (狀態: {status})，嘗試在 Facebook 貼文留言...")
+                from post_clinics import post_facebook_comment
+                comment_success = post_facebook_comment(page, fb_url, copy)
+                if comment_success:
+                    print("  ✅ Facebook 貼文留言成功！")
+                    ok = True
+                    status = 'fb_commented'
+                else:
+                    print("  ❌ Facebook 貼文留言失敗！")
+            else:
+                print("  ❌ 無 Messenger 連結且無 FB 專頁，無法進行任何留言")
 
         # ─── 步驟 4: 更新狀態標記與日誌 / Save Status ───
         db.update_clinic_status(clinic_id, status, datetime.now().isoformat())

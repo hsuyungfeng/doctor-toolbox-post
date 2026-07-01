@@ -213,34 +213,28 @@ def send_messenger_message(page, messenger_url, copy_text, dry_run=False):
         
     # Locate textbox
     print("  🔍 定位輸入框...")
-    textbox_selector = "div[contenteditable='true'][role='textbox'], div[role='textbox']"
-    
-    # Focus and type text
-    text_inserted = page.evaluate("""(textToInsert) => {
-        const boxes = Array.from(document.querySelectorAll(
-            "div[contenteditable='true'], [role='textbox'], [aria-label^='Aa'], [aria-label*='訊息'], [aria-label*='Message'], [aria-label*='message']"
-        ));
-        const tb = boxes.find(el => {
-            const style = window.getComputedStyle(el);
-            return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetHeight > 0;
-        });
-        
+    focused = page.evaluate("""() => {
+        const tb = document.querySelector('div[contenteditable="true"][role="textbox"]');
         if (tb) {
-            tb.focus();
-            tb.click();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('delete', false, null);
-            document.execCommand('insertText', false, textToInsert);
-            return true;
+            const style = window.getComputedStyle(tb);
+            if (style.display !== 'none' && style.visibility !== 'hidden' && tb.offsetHeight > 0) {
+                tb.focus();
+                tb.click();
+                document.execCommand('selectAll', false, null);
+                document.execCommand('delete', false, null);
+                return true;
+            }
         }
         return false;
-    }""", copy_text)
+    }""")
     
-    if not text_inserted:
+    if not focused:
         page.screenshot(path="/tmp/outreach_textbox_failed.png")
         print("  ❌ 找不到可寫入的 Messenger 輸入框。")
         return False, "textbox_not_found"
         
+    print("  📝 聚焦成功，使用 page.keyboard.insert_text() 插入文字...")
+    page.keyboard.insert_text(copy_text)
     time.sleep(2)
     
     if dry_run:
@@ -339,7 +333,10 @@ def main():
             
     print(f"\n📊 待發送的 Messenger 開發候選名單: {len(candidates)} 筆")
     if not candidates:
-        print("  - 沒有符合條件且尚未發送的診所。請確認 CSV 中是否有 Messenger 連結與 Personalized_Copy。")
+        if args.dry_run:
+            print("  - 沒有符合條件的診所（含已發送）。請確認 CSV 中是否有 Messenger 連結與 Personalized_Copy。")
+        else:
+            print("  - 沒有符合條件且尚未發送的診所。請確認 CSV 中是否有 Messenger 連結與 Personalized_Copy。")
         return
         
     # Limit number of sends in one run
@@ -351,7 +348,7 @@ def main():
     try:
         browser_context = launch_persistent_context(
             user_data_dir=PROFILE_DIR,
-            headless=False,
+            headless=True,
             humanize=True,
             timezone="Asia/Taipei",
             locale="zh-TW",
@@ -451,9 +448,12 @@ def main():
                     
             # Wait between sends to avoid bot detection
             if index < len(to_send) - 1 and not interrupted:
-                min_delay = int(args.delay_min * delay_multiplier)
-                max_delay = int(args.delay_max * delay_multiplier)
-                delay = random.randint(min_delay, max_delay)
+                if args.dry_run:
+                    delay = random.randint(5, 10)  # Short delay for dry-run
+                else:
+                    min_delay = int(args.delay_min * delay_multiplier)
+                    max_delay = int(args.delay_max * delay_multiplier)
+                    delay = random.randint(min_delay, max_delay)
                 print(f"⏳ 防封鎖冷卻：將隨機等待 {delay} 秒 (約 {delay/60:.1f} 分鐘，延遲乘數 {delay_multiplier:.1f}x) 後再進行下一筆...")
                 
                 # Sleep in small steps so we can interrupt quickly

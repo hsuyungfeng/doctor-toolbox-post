@@ -23,18 +23,33 @@ PROFILE_DIR = WORKSPACE_DIR / "browser_profile"
 CSV_PATH = "/home/hsuyungfeng/文件/doctor-toolbox-post/clinics西醫.csv"
 LOG_PATH = "/home/hsuyungfeng/文件/doctor-toolbox-post/post_log.jsonl"
 
-# Facebook comment content
-FB_COMMENT = """🩺 看診對話，自動變成 SOAP 病歷！
+FB_COMMENT = """🩺 看診對話，自動變成 SOAP 病歷
 
-醫師工具箱幫您：
-🎙️ 語音即時記錄 → AI 轉 SOAP 病歷
+每次看診都要手寫病歷？花掉你一半的時間？
+現在，醫師工具箱幫你自動搞定。
+
+🎙️ 語音即時記錄 → AI 轉成結構化 SOAP 病歷
+看診過程自然對話，不用打字、不用分心。
+
 📱 LINE 病史整合
-🤖 LINE OA 自動回覆
-💰 LINE + Voice Record 每月各 1000 人次，只要 1000 元
+病人原始病史直接同步，完整脈絡一鍵掌握，不再遺漏任何關鍵資訊。
 
-任何 HIS 都能橋接，不須更換 📋
+🤖 LINE OA 自動回覆
+診所常見問題（專長、看診時間、費用）自動回覆，減輕前台負擔。
+
+💰 高用量方案
+LINE + Voice Record 每月各 1000 人次，費用每月 1000 元。
+輕鬆應對門診需求。
+
+🔗 任何系統都能橋接，不須更換 HIS
+
+⚠️ 建議先註冊，再免費體驗！
+避免病人資料流失，錯過每一次完整的病史記錄。
+
 👉 https://doctor-toolbox.com/ai-soap-generator
-徐永峰醫師監製 · 品質保證"""
+
+徐永峰醫師監製 · 品質保證
+歡迎免費體驗分享！"""
 
 # Google Maps comment content (shorter)
 MAPS_COMMENT = """您好！🩺 醫師工具箱 — AI 語音記錄自動轉 SOAP 病歷。支援 LINE 病史整合、OA 自動回覆。任何 HIS 系統都能橋接，不須更換。徐永峰醫師監製。免費體驗：https://doctor-toolbox.com/ai-soap-generator"""
@@ -167,34 +182,42 @@ def post_facebook_comment(page, fb_url, comment_text):
             return False
             
         # Try to click comment button first
-        page.evaluate("""() => {
+        comment_clicked = page.evaluate("""() => {
             const elements = Array.from(document.querySelectorAll('div, span, [role="button"], button, a'));
-            for (const el of elements) {
+            const commentBtn = elements.find(el => {
                 const text = (el.textContent || '').trim();
                 const ariaLabel = el.getAttribute('aria-label') || '';
-                if ((text === '留言' || text === 'Comment' || ariaLabel.includes('留言') || ariaLabel.includes('Comment')) && el.offsetHeight > 0) {
-                    el.click();
-                    break;
-                }
+                return (text === '留言' || text === 'Comment' || ariaLabel.includes('留言') || ariaLabel.includes('Comment')) && el.offsetHeight > 0;
+            });
+            if (commentBtn) {
+                commentBtn.click();
+                return true;
             }
+            return false;
         }""")
-        time.sleep(3)
         
-        # Enter text in the contenteditable comment field
-        text_inserted = page.evaluate("""(commentText) => {
-            const tb = document.querySelector('div[contenteditable="true"], [role="textbox"]');
+        if comment_clicked:
+            time.sleep(3)
+        
+        # Focus and clear comment field
+        focused = page.evaluate("""() => {
+            let tb = document.querySelector('[role="dialog"] div[contenteditable="true"][role="textbox"]');
+            if (!tb) {
+                tb = document.querySelector('div[contenteditable="true"][role="textbox"]');
+            }
             if (tb) {
                 tb.focus();
                 tb.click();
                 document.execCommand('selectAll', false, null);
                 document.execCommand('delete', false, null);
-                document.execCommand('insertText', false, commentText);
                 return true;
             }
             return false;
-        }""", comment_text)
+        }""")
         
-        if text_inserted:
+        if focused:
+            # Use native keyboard injection
+            page.keyboard.insert_text(comment_text)
             time.sleep(2)
             page.keyboard.press("Enter")
             time.sleep(5)
