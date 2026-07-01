@@ -38,6 +38,7 @@ For each clinic in target city:
 | **Local LLM** | `http://localhost:8080/v1/chat/completions` (Qwythos-9B reasoning model) |
 | **LLM max_tokens** | `1024` (must be ≥1024 — reasoning model uses tokens for chain-of-thought) |
 | **Python Environment** | `python3` (Uses system python environment) |
+| **Local Firecrawl** | `http://localhost:3002` (Self-hosted docker container for website scraping) |
 
 ---
 
@@ -47,18 +48,25 @@ This is the **recommended** script for all outreach operations. It handles the c
 
 ### Step 0: Prerequisites (one-time setup)
 
-1. **Release browser locks** before any browser script:
+1. **Start Local Scraper (Firecrawl)**:
+   ```bash
+   cd firecrawl
+   docker compose up -d
+   cd ..
+   ```
+
+2. **Release browser locks** before any browser script:
    ```bash
    pkill -f browser_profile
    ```
 
-2. **Inject Facebook cookies** (required when session expires):
+3. **Inject Facebook cookies** (required when session expires):
    - Log in to Facebook in your regular browser
    - Export cookies via Cookie-Editor extension → JSON
    - Save to `./fb_cookies.json`
    - Run: `python3 import_cookies.py`
 
-3. **Verify LLM is running**:
+4. **Verify LLM is running**:
    ```bash
    curl -s http://localhost:8080/v1/models | head -5
    ```
@@ -93,25 +101,34 @@ python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 300 --delay-max
 
 ---
 
-## 🤖 Hermes / Autonomous Agent Long-Term Operation
+## 🤖 Hermes / Autonomous Agent Long-Term Operation (自動化代理長效運作協定)
 
-When running as an autonomous agent (Hermes, `/goal`, or background task), follow this protocol to send messages slowly and safely:
+當使用自動化代理（如 Hermes、`/goal` 或背景任務）進行推廣時，必須嚴格遵守以下兩大核心步驟以確保系統安全、帳號防封鎖與資訊準確性：
 
-### Safety & Execution Recommendations
+### 1. 收集診所資訊 (Information Gathering via Local Firecrawl)
+- **原理**：流水線會首先搜尋該診所的官網網址。若找到，會自動調用本地 `Firecrawl`（運行在 `http://localhost:3002`）進行深度解析。
+- **目標**：自動提取診所官網中的 **Email 電子郵件**、**Facebook 專頁網址**、以及**診所診療內容 (Markdown)**。
+- **優勢**：
+  - **精準 Email 行銷**：有了 Email 後，能優先通過 Email 進行高投遞率的開發，不會遇到臉書發送限制。
+  - **極致個人化**：抓取到的診所介紹會提供給本地 LLM（Qwen 8080 端口），生成高度擬人化的診所專屬文案。
 
-To prevent Facebook account restrictions and Google CAPTCHA blocks, follow these safe execution limits:
-- **Maximum per run**: 3-5 clinics at a time (strongly recommended).
-- **Estimated time**: ~30-50 minutes per 5 clinics (includes Google search, FB scrape, sending, and cooldowns).
-- **Daily maximum**: 10-15 clinics max per day. Start with 5 clinics in the first few days to warm up the account.
-- **Outreach Delays**: Always use a slow delay between messages: `--delay-min 300 --delay-max 600` (5 to 10 minutes) or even slower like `--delay-min 600 --delay-max 1200` (10 to 20 minutes).
-- **Why**: The pipeline performs Google searches to find FB pages. Too many consecutive searches trigger Google CAPTCHA blocks. Too many FB messages in a short time trigger FB spam filters.
+### 2. 擬人化慢速發送 (Humanized Multichannel Posting)
+為防止 Facebook 帳號被鎖及郵件伺服器被列為垃圾郵件，發送時需模擬真人的發送行為：
+- **多管道發送鏈 (SMTP Email -> Messenger -> FB Comment Fallback)**：
+  - **優先發送 Email**：若有 Email 優先以 Gmail app password 自動寄出內嵌 `doctor-toolbox-post.png` 配圖的精美廣告。
+  - **次要發送 Messenger**：若無 Email，開啟 CloakBrowser 自動上傳廣告配圖並輸入文案發送。
+  - **保底留言**：若 Messenger 發送失敗或未開啟，則自動在該診所粉專的最新貼文下留下完整排版文案。
+- **慢速冷卻設定**：
+  - **每輪上限**：強烈建議每次背景執行僅設定 **3~5 筆診所**（`--limit 5`）。
+  - **發送延遲**：每次發送之間必須設置 **5~10 分鐘** 的隨機冷卻時間（`--delay-min 300 --delay-max 600`），或更安全的 **10~20 分鐘**（`--delay-min 600 --delay-max 1200`）。
+  - **每日上限**：每天發送不超過 **10~15 筆**。
 
-### Autonomous execution command (SLOW & SAFE)
+### 🚀 自動化安全執行指令 (Slow & Safe Run Commands)
 ```bash
-# Run 5 clinics in 台中 slowly (will take ~1-2 hours with delays)
+# 推薦：台中市 5 筆慢速發送，每次發送隨機冷卻 5~10 分鐘 (耗時約 30~50 分鐘)
 python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 300 --delay-max 600
 
-# Extremely safe mode (longer delays)
+# 極致安全模式：隨機冷卻 10~20 分鐘 (適合新帳號或防止郵件限制)
 python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 600 --delay-max 1200
 ```
 
