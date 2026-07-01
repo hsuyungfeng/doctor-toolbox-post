@@ -91,13 +91,26 @@ xvfb-run python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 300 --
 
 專案內建了 `.agents/skills/doctor-toolbox-poster/` 技能，您可以直接命令 AI 代理（Hermes/Antigravity）以全自主方式替您維護與推廣：
 
+### 🎯 推薦策略：從中部五縣市開始
+建議行銷宣傳優先依序從**中部五縣市**開始實施，名單如下：
+- **台中** (`--city 台中`)
+- **彰化** (`--city 彰化`)
+- **南投** (`--city 南投`)
+- **苗栗** (`--city 苗栗`)
+- **雲林** (`--city 雲林`)
+
+### ⏳ 安全防封鎖發送頻率限制
+為維護帳號權重，代理人在排程執行時應嚴格遵守以下時間頻率：
+- ⚡ **5 小時內**：最多處理 **20 間** 診所。
+- 📅 **24 小時（一天）內**：最多處理 **40 間** 診所。
+
 ### 1. 使用 `/goal` 指令委託長效任務
 當您需要讓 Agent 在背景完全自主執行慢速外展時，推薦使用 `/goal` 指令。例如：
-> **「/goal 幫我跑台中市的診所行銷，限制 5 筆，並以 5~10 分鐘的隨機冷卻間隔慢速發送。」**
+> **「/goal 幫我跑台中市的診所行銷，限制 20 筆，並以 10~15 分鐘的隨機冷卻間隔慢速發送。」**
 
 Agent 接收到命令後，會自動：
 1. 確認本地 Firecrawl 容器（`3002` 埠）與 LLM 容器（`8080` 埠）皆已運行。
-2. 背景啟動 `xvfb-run python3 run_city_pipeline.py --city 台中 --limit 5 --delay-min 300 --delay-max 600`。
+2. 背景啟動 `xvfb-run python3 run_city_pipeline.py --city 台中 --limit 20 --delay-min 600 --delay-max 900`。
 3. 每完成一個步驟即更新資料庫與 `clinics西醫.csv`。
 4. 任務完成後自動向您彙報成功統計與發送狀態。
 
