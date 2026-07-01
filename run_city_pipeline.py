@@ -744,5 +744,17 @@ def main():
     print(f"{'='*60}")
     show_stats(city)
 
+    # 自動同步 SQLite 變更回 CSV / Automatically sync SQLite back to CSV
+    print("\n🔄 正在自動同步資料庫變更回 CSV 檔案...")
+    try:
+        import subprocess
+        res = subprocess.run(["python3", "sync_db_to_csv.py"], capture_output=True, text=True)
+        if res.returncode == 0:
+            print("✅ 自動 CSV 同步完成！")
+        else:
+            print(f"⚠️ 自動 CSV 同步失敗: {res.stderr}")
+    except Exception as e:
+        print(f"⚠️ 自動 CSV 同步異常: {e}")
+
 if __name__ == "__main__":
     main()
