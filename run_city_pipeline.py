@@ -648,6 +648,12 @@ def main():
             print(f"  ✅ 步驟 2: 文案已存在 (組別: {ab_variant}, {len(copy)} 字)")
 
         # ─── 步驟 3: 多管道發送決策鏈 / Multichannel Outreach Funnel ───
+        # Prepend personalized greeting header if not already present
+        greeting = f"{name} 醫療團隊您好！\n\n"
+        send_copy = copy
+        if not send_copy.strip().startswith(name) and "醫療團隊您好" not in send_copy:
+            send_copy = greeting + send_copy
+
         ok = False
         status = 'failed'
 
@@ -657,7 +663,7 @@ def main():
             print(f"  ✉️ 優先級 1: 正在發送推廣郵件給 {email}...")
             try:
                 from send_email import send_marketing_email, get_marketing_html_template
-                email_html = get_marketing_html_template(copy)
+                email_html = get_marketing_html_template(send_copy)
                 ok, status = send_marketing_email(email, f"【醫師工具箱】AI 語音病歷生成器 ── {name} 專屬體驗邀請", email_html, image_path=args.image)
                 if ok:
                     status = 'email_sent'
@@ -671,7 +677,7 @@ def main():
             msg_valid = messenger and messenger != 'not_found' and messenger.startswith('http')
             if msg_valid:
                 print(f"  📤 優先級 2: {'DRY-RUN 測試' if args.dry_run else '正式發送'} Messenger 訊息...")
-                ok, status = send_messenger_message(page, messenger, copy, dry_run=args.dry_run, image_path=args.image)
+                ok, status = send_messenger_message(page, messenger, send_copy, dry_run=args.dry_run, image_path=args.image)
             else:
                 print("  ⚠️ 無 Messenger 連結，直接嘗試 Facebook 貼文留言...")
 
@@ -680,7 +686,7 @@ def main():
             if fb_url and fb_url != 'not_found':
                 print(f"  ⚠️ Messenger 無法發送 (狀態: {status})，嘗試在 Facebook 貼文留言...")
                 from post_clinics import post_facebook_comment
-                comment_success = post_facebook_comment(page, fb_url, copy)
+                comment_success = post_facebook_comment(page, fb_url, send_copy)
                 if comment_success:
                     print("  ✅ Facebook 貼文留言成功！")
                     ok = True

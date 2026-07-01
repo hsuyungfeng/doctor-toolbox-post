@@ -41,6 +41,11 @@ LINE + Voice Record 每月各 1000 人次，費用每月 1000 元。
 歡迎免費體驗分享！"""
 
 def send_to_clinic(clinic_name=CLINIC_NAME, messenger_url=MESSENGER_URL, copy_text=COPY_TEXT, image_path=DEFAULT_IMAGE_PATH):
+    # Prepend personalized greeting header if not already present
+    greeting = f"{clinic_name} 醫療團隊您好！\n\n"
+    if not copy_text.strip().startswith(clinic_name) and "醫療團隊您好" not in copy_text:
+        copy_text = greeting + copy_text
+
     # Convert m.me or messenger.com links to facebook.com/messages/t/ to bypass domain issues
     target_url = messenger_url
     if "facebook.com/messages/t/" not in messenger_url:
