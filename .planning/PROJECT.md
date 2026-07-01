@@ -27,12 +27,12 @@ An automated outreach pipeline that discovers Taiwan western-medicine (西醫) c
 - ✓ Generic fallback copy for clinics with no Intro/Post data (automatically routed) — Phase 2
 - ✓ Adaptive delay backoff when rate-limit signals detected (multiplier doubles on block) — Phase 2
 - ✓ Master Campaign Orchestrator CLI (`run_campaign.py`) with locks clearing and session verification — Phase 2
+- ✓ SQLite backend for queries and atomic writes at 11k+ clinic scale — Phase 3
+- ✓ A/B copywriting variant testing with random assignment — Phase 3
 
 ### Active
 
 - [ ] Parallel browser instances for higher throughput while maintaining per-account safety
-- [ ] A/B copy variant testing with per-variant conversion tracking
-- [ ] SQL or SQLite backend to replace CSV for queries at 10k+ clinic scale
 - [ ] Time-series metrics in dashboard (sent/day, reply rate, block rate)
 
 ### Out of Scope
