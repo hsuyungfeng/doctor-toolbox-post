@@ -84,6 +84,38 @@ def show_stats(city):
 # Step 1: Scrape FB (Google & FB crawler)
 # ═══════════════════════════════════════════════════════════════════
 
+def search_clinic_website(page, clinic_name):
+    """Search Google for the clinic's official website."""
+    search_query = f"{clinic_name} 官網"
+    print(f"  🔍 Website search: {search_query}")
+    try:
+        page.goto(f"https://www.google.com/search?q={search_query}&hl=zh-TW&num=10")
+        time.sleep(4)
+        
+        # Extract the first organic search link that is not FB/Maps/Youtube/Instagram
+        website = page.evaluate("""() => {
+            const forbidden = ['facebook.com', 'google.com', 'youtube.com', 'instagram.com', 'twitter.com', 'line.me', 'pixnet.net', 'xuite.net'];
+            const links = Array.from(document.querySelectorAll('a'));
+            for (const a of links) {
+                const href = a.getAttribute('href') || '';
+                if (href.startsWith('http') && !forbidden.some(domain => href.includes(domain))) {
+                    // Check if inside organic results (e.g. h3 headers)
+                    let parent = a.parentElement;
+                    while (parent) {
+                        if (parent.tagName === 'H3' || parent.querySelector('h3')) {
+                            return href;
+                        }
+                        parent = parent.parentElement;
+                    }
+                }
+            }
+            return null;
+        }""")
+        return website
+    except Exception as e:
+        print(f"  ❌ Website search error: {e}")
+        return None
+
 def search_clinic_facebook(page, clinic_name):
     """Google search for clinic's Facebook page."""
     search_query = f"{clinic_name} site:facebook.com"
@@ -512,6 +544,7 @@ def main():
         addr = row['address']
         dept = row['specialty'] or '一般科'
         fb_url = row['fb_url']
+        email = row['email']
         messenger = row['messenger']
         intro = row['intro']
         post_text = row['latest_post']
@@ -524,17 +557,48 @@ def main():
         print(f"{'━'*60}")
 
         # ─── 步驟 1: 尋找與爬取 FB 專頁 / Scrape FB ───
+        # 如果資料庫無 email 或無 fb_url，優先嘗試使用 Firecrawl 爬取官網補充
+        if (not email or not fb_url or fb_url == 'not_found'):
+            print("  🔍 步驟 1a: 嘗試搜尋診所官網進行 Firecrawl 結構化爬取...")
+            website = search_clinic_website(page, name)
+            if website:
+                print(f"  ✅ 找到診所官網: {website}")
+                try:
+                    from firecrawl_scraper import scrape_url_local
+                    scrape_res = scrape_url_local(website)
+                    if scrape_res.get('success'):
+                        # Found emails
+                        emails = scrape_res.get('emails', [])
+                        if emails:
+                            email = emails[0]
+                            print(f"    📧 Firecrawl 提取到 Email: {email}")
+                        
+                        # Found Facebook links
+                        fb_links = scrape_res.get('facebook_links', [])
+                        if fb_links and (not fb_url or fb_url == 'not_found'):
+                            fb_url = fb_links[0]
+                            print(f"    ✅ Firecrawl 提取到 FB: {fb_url}")
+                        
+                        db.update_clinic_fb(clinic_id, email, messenger, intro, post_text, fb_url=fb_url)
+                    else:
+                        print(f"    ⚠️ Firecrawl 爬取失敗: {scrape_res.get('error')}")
+                except Exception as ex:
+                    print(f"    ⚠️ Firecrawl 呼叫異常: {ex}")
+            else:
+                print("    ⚠️ 未找到診所官網")
+
+        # 正常尋找或補全 Facebook/Messenger
         fb_valid = fb_url and fb_url != 'not_found'
         if not fb_valid:
-            print("  🔍 步驟 1: 搜尋 Facebook 頁面...")
+            print("  🔍 步驟 1b: 搜尋 Facebook 頁面...")
             fb_url = search_clinic_facebook(page, name)
 
             if fb_url:
                 print(f"  ✅ 找到 FB: {fb_url}")
-                print("  🔍 步驟 1b: 爬取 FB 頁面詳情...")
+                print("  🔍 步驟 1c: 爬取 FB 頁面詳情...")
                 details = scrape_fb_page_details(page, fb_url, name)
                 
-                email = details.get('email', '')
+                email = details.get('email', '') or email
                 messenger = details.get('messenger', '')
                 intro = details.get('intro', '')
                 post_text = details.get('latest_post', '')
@@ -549,13 +613,13 @@ def main():
                 fail_count += 1
                 continue
         else:
-            print(f"  ✅ 步驟 1: FB 已存在 ({fb_url})")
+            print(f"  ✅ 步驟 1b: FB 已存在 ({fb_url})")
             # 補爬欄位 / Supplement missing info
             if (not messenger or messenger == 'not_found') or (not intro or intro == 'not_found'):
-                print("  🔍 步驟 1b: 補充爬取 FB 頁面詳情...")
+                print("  🔍 步驟 1c: 補充爬取 FB 頁面詳情...")
                 details = scrape_fb_page_details(page, fb_url, name)
                 
-                email = details.get('email', '') or row['email']
+                email = details.get('email', '') or email
                 if not messenger or messenger == 'not_found':
                     messenger = details.get('messenger', '')
                 if not intro or intro == 'not_found':
@@ -583,20 +647,36 @@ def main():
         else:
             print(f"  ✅ 步驟 2: 文案已存在 (組別: {ab_variant}, {len(copy)} 字)")
 
-        # ─── 步驟 3: 模擬真人發送 / Send Outreach ───
-        # 驗證 Messenger 連結 / Validate Messenger link
-        msg_valid = messenger and messenger != 'not_found' and messenger.startswith('http')
+        # ─── 步驟 3: 多管道發送決策鏈 / Multichannel Outreach Funnel ───
         ok = False
-        status = 'no_messenger'
-        
-        if msg_valid:
-            print(f"  📤 步驟 3: {'DRY-RUN 測試' if args.dry_run else '正式發送'} Messenger 訊息...")
-            ok, status = send_messenger_message(page, messenger, copy, dry_run=args.dry_run, image_path=args.image)
-        else:
-            print("  ⚠️ 無 Messenger 連結，將直接嘗試 FaceBook 貼文留言...")
+        status = 'failed'
 
-        # Fallback to Facebook Post Comment if Messenger is invalid or failed
-        if (not ok or status == 'delivery_failed' or not msg_valid) and not args.dry_run:
+        # 優先級 1: Email 發送 (若有 email 欄位)
+        email_valid = email and '@' in email
+        if email_valid and not args.dry_run:
+            print(f"  ✉️ 優先級 1: 正在發送推廣郵件給 {email}...")
+            try:
+                from send_email import send_marketing_email, get_marketing_html_template
+                email_html = get_marketing_html_template(copy)
+                ok, status = send_marketing_email(email, f"【醫師工具箱】AI 語音病歷生成器 ── {name} 專屬體驗邀請", email_html, image_path=args.image)
+                if ok:
+                    status = 'email_sent'
+                else:
+                    print(f"    ⚠️ Email 發送失敗: {status}，準備嘗試 Messenger 私訊...")
+            except Exception as ex:
+                print(f"    ⚠️ Email 發送異常: {ex}，準備嘗試 Messenger 私訊...")
+
+        # 優先級 2: Messenger 私訊 (若 Email 發送失敗或不存在)
+        if not ok:
+            msg_valid = messenger and messenger != 'not_found' and messenger.startswith('http')
+            if msg_valid:
+                print(f"  📤 優先級 2: {'DRY-RUN 測試' if args.dry_run else '正式發送'} Messenger 訊息...")
+                ok, status = send_messenger_message(page, messenger, copy, dry_run=args.dry_run, image_path=args.image)
+            else:
+                print("  ⚠️ 無 Messenger 連結，直接嘗試 Facebook 貼文留言...")
+
+        # 優先級 3: Facebook 貼文留言 (若私訊失敗或無私訊管道)
+        if (not ok or status == 'delivery_failed' or status == 'no_messenger') and not args.dry_run:
             if fb_url and fb_url != 'not_found':
                 print(f"  ⚠️ Messenger 無法發送 (狀態: {status})，嘗試在 Facebook 貼文留言...")
                 from post_clinics import post_facebook_comment
@@ -608,7 +688,7 @@ def main():
                 else:
                     print("  ❌ Facebook 貼文留言失敗！")
             else:
-                print("  ❌ 無 Messenger 連結且無 FB 專頁，無法進行任何留言")
+                print("  ❌ 無可用發送管道且無 FB 專頁，無法進行任何行銷")
 
         # ─── 步驟 4: 更新狀態標記與日誌 / Save Status ───
         db.update_clinic_status(clinic_id, status, datetime.now().isoformat())
