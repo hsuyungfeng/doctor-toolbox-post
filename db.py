@@ -192,7 +192,7 @@ def get_city_candidates(city, limit=20, db_path=DB_PATH):
     query = """
     SELECT * FROM clinics
     WHERE (address LIKE ? OR address LIKE ? OR address LIKE ?)
-      AND (messenger_status IS NULL OR messenger_status NOT IN ('sent', 'dry_run'))
+      AND (messenger_status IS NULL OR messenger_status NOT IN ('sent', 'dry_run', 'fb_commented', 'email_sent'))
       -- 排除中醫與牙醫 / Exclude Traditional Chinese Medicine and Dentists
       AND name NOT LIKE '%中醫%' AND specialty NOT LIKE '%中醫%'
       AND name NOT LIKE '%牙醫%' AND name NOT LIKE '%牙科%' AND specialty NOT LIKE '%牙科%'
@@ -243,7 +243,7 @@ def get_city_stats(city, db_path=DB_PATH):
     stats['has_copy'] = cursor.fetchone()[0]
     
     # 已成功發送 / Sent successfully
-    cursor.execute(f"SELECT COUNT(*) FROM clinics {where_clause} AND messenger_status IN ('sent', 'dry_run')", params)
+    cursor.execute(f"SELECT COUNT(*) FROM clinics {where_clause} AND messenger_status IN ('sent', 'dry_run', 'fb_commented', 'email_sent')", params)
     stats['sent'] = cursor.fetchone()[0]
     
     conn.close()
