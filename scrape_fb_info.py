@@ -392,6 +392,7 @@ def main():
     load_data()
     
     # 2. Map Column indices
+    idx_id = csv_header.index('醫事機構代碼')
     idx_name = csv_header.index('醫事機構名稱')
     idx_addr = csv_header.index('地址')
     idx_fb = csv_header.index('FB_URL')
@@ -498,6 +499,14 @@ def main():
                     if clinic_name not in cache_data:
                         cache_data[clinic_name] = {'clinic_name': clinic_name, 'address': address}
                     cache_data[clinic_name]['fb_url'] = fb_url
+                    
+                    # Update SQLite FB URL
+                    clinic_id = row[idx_id].strip()
+                    try:
+                        import db
+                        db.update_clinic_fb_url(clinic_id, fb_url)
+                    except Exception as db_err:
+                        print(f"    ⚠️ 更新 SQLite FB 網址失敗: {db_err}")
                 else:
                     print("    ❌ 搜尋不到 Facebook 專頁")
                     row[idx_fb] = 'not_found'
@@ -512,6 +521,15 @@ def main():
                     cache_data[clinic_name]['messenger'] = 'not_found'
                     cache_data[clinic_name]['intro'] = 'not_found'
                     cache_data[clinic_name]['latest_post'] = 'not_found'
+                    
+                    # Update SQLite FB details as not_found
+                    clinic_id = row[idx_id].strip()
+                    try:
+                        import db
+                        db.update_clinic_fb(clinic_id, 'not_found', 'not_found', 'not_found', 'not_found', fb_url='not_found')
+                    except Exception as db_err:
+                        print(f"    ⚠️ 寫入 SQLite 失敗: {db_err}")
+                        
                     processed_count += 1
                     newly_saved += 1
                     continue
@@ -539,6 +557,14 @@ def main():
                 cache_data[clinic_name]['messenger'] = messenger
                 cache_data[clinic_name]['intro'] = intro
                 cache_data[clinic_name]['latest_post'] = latest_post
+                
+                # Update SQLite FB details
+                clinic_id = row[idx_id].strip()
+                try:
+                    import db
+                    db.update_clinic_fb(clinic_id, email, messenger, intro, latest_post, fb_url=fb_url)
+                except Exception as db_err:
+                    print(f"    ⚠️ 寫入 SQLite 失敗: {db_err}")
                 
                 print(f"    📧 Email: {email if email else '未公開'}")
                 print(f"    💬 Messenger: {messenger if messenger else '未生成'}")

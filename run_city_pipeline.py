@@ -587,7 +587,7 @@ def main():
         post_text = row['latest_post']
         copy = row['personalized_copy']
         ab_variant = row['ab_variant']
-        website_url = row.get('website_url')
+        website_url = row['website_url']
 
         print(f"\n{'━'*60}")
         print(f"[{seq+1}/{len(to_process)}] 🏥 {name} ({dept})")
