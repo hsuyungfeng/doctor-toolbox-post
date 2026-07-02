@@ -26,6 +26,22 @@ LOG_PATH = str(WORKSPACE_DIR / "outreach_sent_log.jsonl")
 LLM_API_URL = os.environ.get("LLM_API_URL", "http://localhost:8080/v1/chat/completions")
 PROFILE_DIR = WORKSPACE_DIR / "browser_profile"
 
+def update_state_md(city, progress_text, status="RUNNING"):
+    """Updates System Status block inside STATE.md."""
+    state_file = WORKSPACE_DIR / "STATE.md"
+    if not state_file.exists():
+        return
+    try:
+        content = state_file.read_text(encoding="utf-8")
+        # Update System State
+        content = re.sub(r'-\s+\*\*System State\*\*:\s+`.*?`', f'- **System State**: `{status}`', content)
+        # Update Active Campaign
+        campaign_info = f"{city} ({progress_text})"
+        content = re.sub(r'-\s+\*\*Active Campaign\*\*:\s+.*?\n', f'- **Active Campaign**: {campaign_info}\n', content)
+        state_file.write_text(content, encoding="utf-8")
+    except Exception as e:
+        print(f"  ⚠️ 無法更新 STATE.md: {e}")
+
 GENERIC_COPY = """🩺 看診對話，自動變成 SOAP 病歷
 
 每次看診都要手寫病歷？花掉你一半的時間？
@@ -578,6 +594,9 @@ def main():
         print(f"  📍 {addr}")
         print(f"{'━'*60}")
 
+        # 更新 STATE.md 狀態
+        update_state_md(city, f"{name} [{seq+1}/{len(to_process)}] 處理中")
+
         # ─── 步驟 1: 尋找與爬取 FB 專頁 / Scrape FB ───
         # 如果資料庫無 email 或無 fb_url，優先嘗試使用 Firecrawl 爬取官網補充
         if (not email or not fb_url or fb_url == 'not_found'):
@@ -775,6 +794,12 @@ def main():
     print(f"  ❌ 失敗: {fail_count}")
     print(f"{'='*60}")
     show_stats(city)
+
+    # 更新 STATE.md 狀態
+    if interrupted:
+        update_state_md(city, f"因中斷而終止 (成功:{success_count}, 失敗:{fail_count})", "INTERRUPTED")
+    else:
+        update_state_md(city, f"完成 (成功:{success_count}, 失敗:{fail_count})", "IDLE")
 
     # 自動同步 SQLite 變更回 CSV / Automatically sync SQLite back to CSV
     print("\n🔄 正在自動同步資料庫變更回 CSV 檔案...")
