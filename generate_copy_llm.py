@@ -30,13 +30,14 @@ GENERIC_COPY = """您好！我是醫師工具箱的開發團隊。
 我們開發了一套 AI 語音病歷生成工具，可以幫診所：
 
 🎙️ 語音即時轉錄 → AI 自動生成 SOAP 病歷
+📝 全程錄音雲端備份 → 避免診後糾紛，保障雙方法益
 💬 LINE OA 整合 → 自動回覆患者常見問題
 📋 病史整合 → 患者病史一鍵掌握
 
 特點：
 ✅ 任何系統都能橋接，不須更換 HIS
 ✅ 符合健保規範的 SOAP 病歷格式
-✅ 高用量方案（LINE + Voice Record 每月各 1000 人次）
+✅ 高用量方案（LINE + Voice Record 每月各 1000 人次，每月 1000 元）
 
 歡迎免費試用，了解醫師工具箱如何節省您的病歷時間！
 
@@ -56,8 +57,8 @@ class ClinicCopySchema(BaseModel):
     @classmethod
     def validate_copy(cls, val: str) -> str:
         # 1. Length check
-        if len(val) < 80 or len(val) > 180:
-            raise ValueError(f"文案長度（{len(val)} 字）必須在 80 到 180 字之間。")
+        if len(val) < 100 or len(val) > 200:
+            raise ValueError(f"文案長度（{len(val)} 字）必須在 100 到 200 字之間。")
         
         # 2. Traditional Chinese check
         simplified_chars = [
@@ -284,9 +285,10 @@ def build_prompt(clinic_name, dept, intro, latest_post):
 產品介紹：
 「醫師工具箱」是一個 AI 輔助病歷記載工具：
 1. 🎙️ 語音即時記錄：看診對話錄音，AI 自動轉換為符合健保格式的 SOAP 病歷，節省 80% 打字時間。
-2. 📱 LINE 病史整合：串接 LINE OA，病患可以在 LINE 上預約、自動回覆，並整合病歷史。
-3. HIS 系統橋接：支援任何現有 HIS 診所系統，完全不須更換既有設備。
-4. 優惠資費：LINE + Voice Record 每月各 1000 人次，只要 1000 元。由徐永峰醫師監製。
+2. 📝 全程錄音雲端備份：自動保存錄音檔，避免診後糾紛，保障醫師與患者雙方法益。
+3. 📱 LINE 病史整合：串接 LINE OA，病患可以在 LINE 上預約、自動回覆，並整合病歷史。
+4. HIS 系統橋接：支援任何現有 HIS 診所系統，完全不須更換既有設備。
+5. 優惠資費：每月 1000 元，包含 LINE + Voice Record 每月各 1000 人次。由徐永峰醫師監製。
 
 請返回 JSON 格式的數據，格式如下：
 {{
@@ -297,19 +299,20 @@ def build_prompt(clinic_name, dept, intro, latest_post):
 文案生成要求：
 1. 必須以繁體中文撰寫，字數控制在 100-150 字之間，簡潔有禮。
 2. 必須精準結合該診所的特色（例如：如果是小兒科，強調記載小兒發展史與疫苗資訊；如果是眼科，強調記載近視控制與配鏡需求；如果是外科，強調記載傷口處置等）。
-3. 不要使用任何罐頭問候語，第一句直接切入「針對貴診所在...方面的特色，醫師工具箱能提供...協助」。
-4. 結尾附上免費體驗連結：https://doctor-toolbox.com/ai-soap-generator。
-5. 嚴禁包含醫療法禁用的誇大詞彙（如「最佳」、「最先進」、「保證療效」、「根治」、「全台第一」）。
+3. 必須包含「全程錄音雲端備份」與「每月 1000 元」的賣點。
+4. 不要使用任何罐頭問候語，第一句直接切入「針對貴診所在...方面的特色，醫師工具箱能提供...協助」。
+5. 結尾附上免費體驗連結：https://doctor-toolbox.com/ai-soap-generator。
+6. 嚴禁包含醫療法禁用的誇大詞彙（如「最佳」、「最先進」、「保證療效」、「根治」、「全台第一」）。
 
 範例一（小兒科）：
 {{
-    "personalized_copy": "針對貴診所在小兒過敏與預防接種方面的專業特色，醫師工具箱能提供極大協助。我們的 AI 語音病歷系統能即時轉錄看診對話，自動生成符合小兒發展與疫苗紀錄的 SOAP 病歷，免去繁瑣的手動輸入。讓您可以更專注於與家長的溝通。歡迎點擊免費體驗：https://doctor-toolbox.com/ai-soap-generator",
+    "personalized_copy": "針對貴診所在小兒過敏與預防接種方面的專業特色，醫師工具箱能提供極大協助。我們的 AI 語音病歷系統能即時轉錄看診對話，自動生成符合小兒發展與疫苗紀錄的 SOAP 病歷，全程錄音雲端備份避免診後糾紛。每月 1000 元即享 LINE+ 語音各 1000 人次用量。歡迎點擊免費體驗：https://doctor-toolbox.com/ai-soap-generator",
     "specialty_tag": "小兒科"
 }}
 
 範例二（一般科/家醫科）：
 {{
-    "personalized_copy": "針對貴診所在慢性病長期追蹤與家庭照護的在地特色，醫師工具箱能提供絕佳協助。我們的 AI SOAP 語音病歷能即時記錄患者病情陳述，並整合 LINE OA 預約與自動問答，大幅節省行政與病歷整理時間。歡迎點擊免費體驗：https://doctor-toolbox.com/ai-soap-generator",
+    "personalized_copy": "針對貴診所在慢性病長期追蹤與家庭照護的在地特色，醫師工具箱能提供絕佳協助。我們的 AI SOAP 語音病歷能即時記錄患者病情陳述，全程錄音雲端備份保障雙方權益，並整合 LINE OA 預約與自動問答，大幅節省行政與病歷整理時間。每月 1000 元包含高用量方案。歡迎點擊免費體驗：https://doctor-toolbox.com/ai-soap-generator",
     "specialty_tag": "一般科"
 }}
 

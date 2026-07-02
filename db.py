@@ -55,7 +55,8 @@ def init_db(db_path=DB_PATH):
         personalized_copy TEXT, -- Personalized_Copy
         messenger_status TEXT, -- Messenger_Status
         outreach_time TEXT,  -- Outreach_Time
-        ab_variant TEXT      -- ab_variant (personalized / generic)
+        ab_variant TEXT,     -- ab_variant (personalized / generic)
+        website_url TEXT     -- Official Website URL
     )
     """)
     
@@ -63,6 +64,14 @@ def init_db(db_path=DB_PATH):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clinics_address ON clinics(address);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_clinics_status ON clinics(messenger_status);")
     
+    # 遷移：為舊的資料庫新增 website_url 欄位 / Migration: Add website_url to existing DB
+    try:
+        cursor.execute("ALTER TABLE clinics ADD COLUMN website_url TEXT;")
+        conn.commit()
+        print("  ℹ️ 遷移：已為 clinics 表新增 website_url 欄位 / Migrated: Added website_url to clinics table.")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+        
     conn.commit()
     conn.close()
     print("  ✅ 資料庫初始化完成 / Database initialized successfully.")
@@ -302,6 +311,17 @@ def update_clinic_status(clinic_id, status, outreach_time, db_path=DB_PATH):
         messenger_status = ?, outreach_time = ?
     WHERE id = ?
     """, (status, outreach_time, clinic_id))
+    conn.commit()
+    conn.close()
+
+def update_clinic_website(clinic_id, website_url, db_path=DB_PATH):
+    """
+    更新診所官方網站網址。
+    Update clinic's official website URL.
+    """
+    conn = get_db_connection(db_path)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE clinics SET website_url = ? WHERE id = ?", (website_url, clinic_id))
     conn.commit()
     conn.close()
 

@@ -48,12 +48,13 @@ idx_post = header.index('Latest_Post') if 'Latest_Post' in header else -1
 idx_copy = header.index('Personalized_Copy') if 'Personalized_Copy' in header else -1
 idx_status = header.index('Messenger_Status') if 'Messenger_Status' in header else -1
 idx_time = header.index('Outreach_Time') if 'Outreach_Time' in header else -1
+idx_web = header.index('Website_URL') if 'Website_URL' in header else -1
 
 # Add columns if they do not exist
 for col_name, idx_ref in [('FB_URL', idx_fb), ('Email', idx_email), ('Messenger', idx_msg), 
                          ('Intro', idx_intro), ('Latest_Post', idx_post), 
                          ('Personalized_Copy', idx_copy), ('Messenger_Status', idx_status), 
-                         ('Outreach_Time', idx_time)]:
+                         ('Outreach_Time', idx_time), ('Website_URL', idx_web)]:
     if idx_ref == -1:
         header.append(col_name)
 
@@ -66,6 +67,7 @@ idx_post = header.index('Latest_Post')
 idx_copy = header.index('Personalized_Copy')
 idx_status = header.index('Messenger_Status')
 idx_time = header.index('Outreach_Time')
+idx_web = header.index('Website_URL')
 
 print("Syncing CSV rows with database...")
 updated_count = 0
@@ -84,6 +86,7 @@ for row in rows:
         row[idx_intro] = db_row.get('intro') or ''
         row[idx_post] = db_row.get('latest_post') or ''
         row[idx_copy] = db_row.get('personalized_copy') or ''
+        row[idx_web] = db_row.get('website_url') or ''
         
         # Only keep positive statuses in CSV (sent, dry_run, fb_commented, email_sent)
         # Clear other failed/NULL statuses to empty (unsent)

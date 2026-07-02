@@ -401,6 +401,19 @@ def send_messenger_message(page, messenger_url, copy_text, dry_run=False, image_
 
     # Locate textbox and insert text
     print("  🔍 定位輸入框...")
+    
+    # 模擬真人滑鼠移動至輸入框並點擊 / Simulate human mouse movements
+    try:
+        locator = page.locator('div[contenteditable="true"][role="textbox"]').first
+        if locator.is_visible():
+            box = locator.bounding_box()
+            if box:
+                page.mouse.move(box['x'] + box['width']/2, box['y'] + box['height']/2, steps=15)
+                time.sleep(0.4)
+                page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+    except Exception as me:
+        pass
+
     focused = page.evaluate("""() => {
         const tb = document.querySelector('div[contenteditable="true"][role="textbox"]');
         if (tb) {
@@ -486,6 +499,7 @@ def main():
     parser.add_argument("--delay-min", type=int, default=300, help="訊息間最小延遲秒數 (預設 300)")
     parser.add_argument("--delay-max", type=int, default=600, help="訊息間最大延遲秒數 (預設 600)")
     parser.add_argument("--image", type=str, default="/home/hsuyungfeng/DevSoft/doctor-toolbox-post/assets/doctor-toolbox-post.png", help="廣告配圖路徑 (預設為 assets 下的圖)")
+    parser.add_argument("--proxy", type=str, help="代理伺服器網址 (例如 http://127.0.0.1:8080)")
     args = parser.parse_args()
 
     city = args.city
@@ -511,6 +525,12 @@ def main():
     # 3. 啟動瀏覽器 / Launch CloakBrowser
     print(f"🚀 啟動 CloakBrowser (profile: {PROFILE_DIR})...")
     from cloakbrowser import launch_persistent_context
+    
+    chrome_args = ["--fingerprint=77889"]
+    if getattr(args, 'proxy', None):
+        chrome_args.append(f"--proxy-server={args.proxy}")
+        print(f"  🔒 使用代理伺服器: {args.proxy}")
+        
     try:
         browser = launch_persistent_context(
             user_data_dir=PROFILE_DIR,
@@ -518,7 +538,7 @@ def main():
             humanize=True,
             timezone="Asia/Taipei",
             locale="zh-TW",
-            args=["--fingerprint=77889"]
+            args=chrome_args
         )
     except Exception as e:
         print(f"❌ 瀏覽器啟動失敗: {e}")
@@ -551,6 +571,7 @@ def main():
         post_text = row['latest_post']
         copy = row['personalized_copy']
         ab_variant = row['ab_variant']
+        website_url = row.get('website_url')
 
         print(f"\n{'━'*60}")
         print(f"[{seq+1}/{len(to_process)}] 🏥 {name} ({dept})")
@@ -561,9 +582,22 @@ def main():
         # 如果資料庫無 email 或無 fb_url，優先嘗試使用 Firecrawl 爬取官網補充
         if (not email or not fb_url or fb_url == 'not_found'):
             print("  🔍 步驟 1a: 嘗試搜尋診所官網進行 Firecrawl 結構化爬取...")
-            website = search_clinic_website(page, name)
-            if website:
-                print(f"  ✅ 找到診所官網: {website}")
+            website = website_url
+            if not website:
+                website = search_clinic_website(page, name)
+                if website:
+                    db.update_clinic_website(clinic_id, website)
+                    print(f"    ✅ 搜尋到診所官網並已寫入資料庫快取: {website}")
+                else:
+                    db.update_clinic_website(clinic_id, 'not_found')
+                    website = 'not_found'
+                    print("    ⚠️ 未找到診所官網，已標記快取為 not_found")
+            elif website == 'not_found':
+                print("    ⚠️ 官網先前已標記為未找到，跳過搜尋。")
+            else:
+                print(f"    ✅ 讀取到資料庫快取官網: {website}")
+
+            if website and website != 'not_found':
                 try:
                     from firecrawl_scraper import scrape_url_local
                     scrape_res = scrape_url_local(website)
@@ -585,8 +619,6 @@ def main():
                         print(f"    ⚠️ Firecrawl 爬取失敗: {scrape_res.get('error')}")
                 except Exception as ex:
                     print(f"    ⚠️ Firecrawl 呼叫異常: {ex}")
-            else:
-                print("    ⚠️ 未找到診所官網")
 
         # 正常尋找或補全 Facebook/Messenger
         fb_valid = fb_url and fb_url != 'not_found'

@@ -182,24 +182,49 @@ def post_facebook_comment(page, fb_url, comment_text):
             return False
             
         # Try to click comment button first
-        comment_clicked = page.evaluate("""() => {
-            const elements = Array.from(document.querySelectorAll('div, span, [role="button"], button, a'));
-            const commentBtn = elements.find(el => {
-                const text = (el.textContent || '').trim();
-                const ariaLabel = el.getAttribute('aria-label') || '';
-                return (text === '留言' || text === 'Comment' || ariaLabel.includes('留言') || ariaLabel.includes('Comment')) && el.offsetHeight > 0;
-            });
-            if (commentBtn) {
-                commentBtn.click();
-                return true;
-            }
-            return false;
-        }""")
+        comment_clicked = False
+        try:
+            comment_btn_loc = page.locator('div[role="button"]:has-text("留言"), span:has-text("留言"), div[role="button"]:has-text("Comment"), span:has-text("Comment")').first
+            if comment_btn_loc.is_visible():
+                box = comment_btn_loc.bounding_box()
+                if box:
+                    page.mouse.move(box['x'] + box['width']/2, box['y'] + box['height']/2, steps=10)
+                    time.sleep(0.3)
+                    page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+                    comment_clicked = True
+        except Exception:
+            pass
+
+        if not comment_clicked:
+            comment_clicked = page.evaluate("""() => {
+                const elements = Array.from(document.querySelectorAll('div, span, [role="button"], button, a'));
+                const commentBtn = elements.find(el => {
+                    const text = (el.textContent || '').trim();
+                    const ariaLabel = el.getAttribute('aria-label') || '';
+                    return (text === '留言' || text === 'Comment' || ariaLabel.includes('留言') || ariaLabel.includes('Comment')) && el.offsetHeight > 0;
+                });
+                if (commentBtn) {
+                    commentBtn.click();
+                    return true;
+                }
+                return false;
+            }""")
         
         if comment_clicked:
             time.sleep(3)
         
         # Focus and clear comment field
+        try:
+            tb_loc = page.locator('[role="dialog"] div[contenteditable="true"][role="textbox"], div[contenteditable="true"][role="textbox"]').first
+            if tb_loc.is_visible():
+                box = tb_loc.bounding_box()
+                if box:
+                    page.mouse.move(box['x'] + box['width']/2, box['y'] + box['height']/2, steps=15)
+                    time.sleep(0.4)
+                    page.mouse.click(box['x'] + box['width']/2, box['y'] + box['height']/2)
+        except Exception:
+            pass
+
         focused = page.evaluate("""() => {
             let tb = document.querySelector('[role="dialog"] div[contenteditable="true"][role="textbox"]');
             if (!tb) {
